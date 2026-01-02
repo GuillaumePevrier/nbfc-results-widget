@@ -26,7 +26,7 @@ const lookupClubNumber = async (request: Request, clubId: string): Promise<strin
   }
 };
 
-const resolveClubId = async (request: Request, providedId: string): Promise<string | null> => {
+const resolveClubId = async (request: Request, providedId: string): Promise<string> => {
   const candidate = providedId || DEFAULT_CLUB_ID;
 
   if (/^\d{6,}$/.test(candidate) && candidate !== DEFAULT_CLUB_ID) {
