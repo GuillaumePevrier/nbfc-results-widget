@@ -107,6 +107,15 @@ export default async function WidgetPage({ searchParams }: WidgetPageProps) {
   let resultsPath = `/api/dofa/results?clNo=${encodeURIComponent(clubId)}${resultsQuery}`;
   let resultsResponse = await fetchInternal(resultsPath);
 
+  // If a competition filter yields no route (404), retry without the filter before surfacing an error
+  if (!resultsResponse.response.ok && selectedCompetitionId) {
+    const fallbackPath = `/api/dofa/results?clNo=${encodeURIComponent(clubId)}`;
+    const fallbackResponse = await fetchInternal(fallbackPath);
+    if (fallbackResponse.response.ok && fallbackResponse.data?.ok) {
+      resultsResponse = fallbackResponse;
+    }
+  }
+
   if (resultsResponse.response.status === 404 && clubParam && clubParam !== clubId) {
     const resolved = await resolveClubId(clubParam);
     clubId = resolved.clubId;
