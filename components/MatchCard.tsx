@@ -1,15 +1,17 @@
 import styles from "./widget.module.css";
-import { MatchSummary } from "@/types/results";
+import { MatchDetails } from "@/types/results";
 
 interface MatchCardProps {
   title: string;
   badge: string;
-  match: MatchSummary;
+  match: MatchDetails | null;
   showScore?: boolean;
 }
 
-const formatDate = (value: string) => {
+const formatDate = (value?: string) => {
+  if (!value) return "Date inconnue";
   const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("fr-FR", {
     weekday: "short",
     day: "2-digit",
@@ -17,12 +19,27 @@ const formatDate = (value: string) => {
   });
 };
 
-const venueLabel = (isHome?: boolean) => {
-  if (isHome === undefined) return "Venue TBC";
-  return isHome ? "Home" : "Away";
+const formatTeamLine = (home?: string, away?: string) => {
+  if (!home && !away) return "Équipes indisponibles";
+  if (!home) return `? vs ${away}`;
+  if (!away) return `${home} vs ?`;
+  return `${home} vs ${away}`;
 };
 
 export function MatchCard({ title, badge, match, showScore }: MatchCardProps) {
+  if (!match) {
+    return (
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <span className={styles.titleAccent}>{title}</span>
+          <span className={styles.badge}>{badge}</span>
+        </div>
+        <div className={styles.matchOpp}>Données indisponibles</div>
+        <div className={styles.meta}>Aucune information récupérée</div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.section}>
       <div className={styles.sectionHeader}>
@@ -30,16 +47,23 @@ export function MatchCard({ title, badge, match, showScore }: MatchCardProps) {
         <span className={styles.badge}>{badge}</span>
       </div>
       <div>
-        <div className={styles.matchOpp}>{match.opponent}</div>
-        <div className={styles.meta}>{match.competition ?? "Competition"}</div>
+        <div className={styles.matchOpp}>
+          {formatTeamLine(match.homeName, match.awayName)}
+        </div>
+        <div className={styles.meta}>{match.competitionName ?? "Compétition inconnue"}</div>
       </div>
       <div className={styles.meta}>
         {formatDate(match.date)} {match.time ? `• ${match.time}` : ""}
+        {match.venueCity ? ` • ${match.venueCity}` : ""}
       </div>
       {showScore ? (
-        <div className={styles.score}>{match.score ?? "-"}</div>
+        <div className={styles.score}>
+          {match.homeScore !== undefined && match.awayScore !== undefined
+            ? `${match.homeScore} - ${match.awayScore}`
+            : "-"}
+        </div>
       ) : (
-        <div className={styles.homeAway}>{venueLabel(match.isHome)}</div>
+        <div className={styles.homeAway}>{match.venueCity ?? "Lieu à confirmer"}</div>
       )}
     </div>
   );

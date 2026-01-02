@@ -1,24 +1,35 @@
 import styles from "./widget.module.css";
-import { RankingSummary } from "@/types/results";
 
 interface RankingCardProps {
-  ranking: RankingSummary;
+  ranking?: { position?: number; points?: number } | null;
 }
 
 export function RankingCard({ ranking }: RankingCardProps) {
+  const hasData =
+    ranking !== null &&
+    ranking !== undefined &&
+    ranking.position !== undefined &&
+    ranking.points !== undefined;
+
   return (
     <div className={`${styles.section} ${styles.rankingCard}`}>
       <div className={styles.sectionHeader}>
-        <span className={styles.titleAccent}>Ranking</span>
-        <span className={styles.badge}>Summary</span>
+        <span className={styles.titleAccent}>Classement</span>
+        <span className={styles.badge}>Résumé</span>
       </div>
-      <div className={styles.rankNumber}>#{ranking.position}</div>
-      <div className={styles.points}>
-        <span>Points</span>
-        <strong>{ranking.points}</strong>
-      </div>
+      {hasData ? (
+        <>
+          <div className={styles.rankNumber}>#{ranking!.position}</div>
+          <div className={styles.points}>
+            <span>Points</span>
+            <strong>{ranking!.points}</strong>
+          </div>
+        </>
+      ) : (
+        <div className={styles.meta}>Données indisponibles</div>
+      )}
       <p className={styles.meta}>
-        Updated dynamically from the French Football Federation (FFF) DOFA API.
+        Données issues de la Fédération Française de Football (FFF) • DOFA.
       </p>
     </div>
   );

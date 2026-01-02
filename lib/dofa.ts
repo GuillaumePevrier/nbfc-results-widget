@@ -1,111 +1,144 @@
-import { ClubResults, MatchSummary, RankingSummary } from "@/types/results";
 import { ClubTeam } from "@/types/teams";
-import { mockedResults } from "./mockData";
+import { MatchDetails } from "@/types/results";
 
 export const DEFAULT_CLUB_ID = "547517";
 const API_BASE = "https://api-dofa.fff.fr/api";
 
-const normalizeMatch = (match: any, fallback?: Partial<MatchSummary>): MatchSummary => ({
-  opponent:
-    match?.equipeAdverse ??
-    match?.adversaire ??
-    match?.opponent ??
-    match?.clubAdverse ??
-    fallback?.opponent ??
-    "Unknown opponent",
-  competition:
-    match?.competition ??
-    match?.competitionLibelle ??
-    match?.competitionLabel ??
-    fallback?.competition,
-  date:
-    match?.date ??
-    match?.dateMatch ??
-    match?.journee ??
-    match?.jour ??
-    fallback?.date ??
-    new Date().toISOString(),
-  time: match?.heure ?? match?.horaire ?? match?.time ?? fallback?.time,
-  isHome:
-    typeof match?.domicile === "boolean"
-      ? match.domicile
-      : match?.home ?? match?.isHome ?? fallback?.isHome,
-  score:
-    match?.score ??
-    match?.resultat ??
-    (typeof match?.butsPour === "number" && typeof match?.butsContre === "number"
-      ? `${match.butsPour}-${match.butsContre}`
-      : undefined) ??
-    fallback?.score,
-});
-
-const normalizeRanking = (ranking: any): RankingSummary | null => {
-  if (!ranking) return null;
-  const position = Number(
-    ranking.position ?? ranking.rang ?? ranking.rank ?? ranking.classement
-  );
-  const points = Number(ranking.points ?? ranking.pts ?? ranking.totalPoints);
-  if (!Number.isFinite(position) || !Number.isFinite(points)) return null;
-  return { position, points };
+const toDateValue = (value: unknown): string | null => {
+  if (!value || typeof value !== "string") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
 
-const mapDofaResponse = (data: any): ClubResults | null => {
-  if (!data) return null;
+const normalizeMatchDetails = (match: unknown): (MatchDetails & { rawDate: string }) | null => {
+  if (!match || typeof match !== "object") return null;
+  const entry = match as Record<string, unknown>;
 
-  const lastMatchRaw =
-    data?.lastMatch ??
-    data?.dernierMatch ??
-    data?.resultats?.[0] ??
-    data?.resultat?.[0] ??
-    data?.matches?.[0];
+  const date =
+    toDateValue(entry.date as string) ||
+    toDateValue((entry as Record<string, string>).dateMatch) ||
+    toDateValue((entry as Record<string, string>).jour) ||
+    toDateValue((entry as Record<string, string>).journee);
 
-  const nextMatchRaw =
-    data?.nextMatch ?? data?.prochainMatch ?? data?.rencontres?.[0] ?? data?.upcoming?.[0];
+  if (!date) return null;
 
-  const rankingRaw = data?.ranking ?? data?.classement ?? data?.standings;
+  const homeName =
+    (entry.clubReceveur as string) ||
+    (entry.clubRecevant as string) ||
+    (entry.clubDomicile as string) ||
+    (entry.equipeDomicile as string) ||
+    (entry.homeTeam as string) ||
+    (entry.home as string) ||
+    (entry.equipeHome as string);
 
-  const lastMatch = lastMatchRaw && normalizeMatch(lastMatchRaw);
-  const nextMatch = nextMatchRaw && normalizeMatch(nextMatchRaw);
-  const ranking = normalizeRanking(rankingRaw);
+  const awayName =
+    (entry.clubVisiteur as string) ||
+    (entry.clubExterieur as string) ||
+    (entry.equipeExterieure as string) ||
+    (entry.awayTeam as string) ||
+    (entry.away as string) ||
+    (entry.equipeAway as string);
 
-  if (!lastMatch || !nextMatch || !ranking) return null;
+  const competitionName =
+    (entry.competitionLibelle as string) ||
+    (entry.competitionLabel as string) ||
+    (entry.competition as string) ||
+    (entry.libelleCompetition as string);
+
+  const venueCity = (entry.ville as string) || (entry.lieu as string) || (entry.stade as string);
+
+  const homeScore =
+    typeof entry.butsPour === "number"
+      ? (entry.butsPour as number)
+      : typeof entry.home_score === "number"
+        ? (entry.home_score as number)
+        : typeof entry.scoreDomicile === "number"
+          ? (entry.scoreDomicile as number)
+          : undefined;
+
+  const awayScore =
+    typeof entry.butsContre === "number"
+      ? (entry.butsContre as number)
+      : typeof entry.away_score === "number"
+        ? (entry.away_score as number)
+        : typeof entry.scoreExterieur === "number"
+          ? (entry.scoreExterieur as number)
+          : undefined;
+
+  const time = (entry.heure as string) || (entry.horaire as string) || (entry.time as string);
 
   return {
-    lastMatch,
-    nextMatch,
-    ranking,
+    rawDate: date,
+    date,
+    time,
+    homeName,
+    awayName,
+    homeScore,
+    awayScore,
+    competitionName,
+    venueCity,
   };
 };
 
-export async function getClubResults(clubId: string = DEFAULT_CLUB_ID): Promise<ClubResults> {
+const findLastAndNextMatches = (matches: unknown[]): {
+  lastMatch: MatchDetails | null;
+  nextMatch: MatchDetails | null;
+} => {
+  const normalized = matches
+    .map((match) => normalizeMatchDetails(match))
+    .filter((match): match is MatchDetails & { rawDate: string } => Boolean(match));
+
+  if (!normalized.length) return { lastMatch: null, nextMatch: null };
+
+  const now = Date.now();
+
+  const completed = normalized.filter(
+    (match) => match.homeScore !== undefined && match.awayScore !== undefined
+  );
+  completed.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+
+  const upcoming = normalized.filter(
+    (match) => (match.homeScore === undefined || match.awayScore === undefined) && new Date(match.rawDate).getTime() >= now
+  );
+  upcoming.sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
+
+  return {
+    lastMatch: completed[0] ?? null,
+    nextMatch: upcoming[0] ?? null,
+  };
+};
+
+export async function fetchClubResults(
+  clubId: string = DEFAULT_CLUB_ID
+): Promise<{ lastMatch: MatchDetails | null; nextMatch: MatchDetails | null }> {
   const activeClubId = clubId || DEFAULT_CLUB_ID;
-  const fallback = mockedResults(activeClubId);
   const endpoint = `${API_BASE}/clubs/${activeClubId}/resultat`;
 
-  try {
-    const response = await fetch(endpoint, {
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-      },
-    });
+  const response = await fetch(endpoint, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Mozilla/5.0 (compatible; nbfc-results-widget/1.0)",
+    },
+    next: { revalidate: 300 },
+  });
 
-    if (!response.ok) {
-      throw new Error(`DOFA API responded with ${response.status}`);
-    }
-
-    const data = await response.json();
-    const normalized = mapDofaResponse(data);
-
-    if (!normalized) {
-      throw new Error("Unable to parse DOFA API response");
-    }
-
-    return normalized;
-  } catch (error) {
-    console.error("Failed to fetch DOFA results", error);
-    return fallback;
+  if (!response.ok) {
+    const error = new Error(`DOFA API responded with ${response.status}`) as Error & {
+      status?: number;
+    };
+    error.status = response.status;
+    throw error;
   }
+
+  const data = (await response.json()) as { "hydra:member"?: unknown[]; resultat?: unknown[] };
+  const matches =
+    (Array.isArray(data?.["hydra:member"]) && data["hydra:member"]) ||
+    (Array.isArray(data?.resultat) && data.resultat) ||
+    [];
+
+  const { lastMatch, nextMatch } = findLastAndNextMatches(matches);
+
+  return { lastMatch, nextMatch };
 }
 
 const normalizeTeam = (team: any): ClubTeam | null => {
@@ -159,37 +192,26 @@ export async function getClubTeams(clubId: string = DEFAULT_CLUB_ID): Promise<{
 }> {
   const activeClubId = clubId || DEFAULT_CLUB_ID;
   const endpoint = `${API_BASE}/clubs/${activeClubId}/equipes.json?filter=`;
-  const fallbackTeams: ClubTeam[] = [
-    {
-      name: "Senior A",
-      competitionId: undefined,
+
+  const response = await fetch(endpoint, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "Mozilla/5.0 (compatible; nbfc-results-widget/1.0)",
     },
-  ];
+    next: { revalidate: 300 },
+  });
 
-  try {
-    const response = await fetch(endpoint, {
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`DOFA API responded with ${response.status}`);
-    }
-
-    const data = await response.json();
-    const teams = mapTeamsResponse(data);
-    const defaultTeam = selectDefaultTeam(teams);
-
-    if (!teams.length) {
-      throw new Error("No teams returned from DOFA API");
-    }
-
-    return { teams, defaultTeam };
-  } catch (error) {
-    console.error("Failed to fetch DOFA teams", error);
-    const defaultTeam = selectDefaultTeam(fallbackTeams);
-    return { teams: fallbackTeams, defaultTeam };
+  if (!response.ok) {
+    const error = new Error(`DOFA API responded with ${response.status}`) as Error & {
+      status?: number;
+    };
+    error.status = response.status;
+    throw error;
   }
+
+  const data = await response.json();
+  const teams = mapTeamsResponse(data);
+  const defaultTeam = selectDefaultTeam(teams);
+
+  return { teams, defaultTeam };
 }

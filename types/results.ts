@@ -1,19 +1,23 @@
-export type MatchSummary = {
-  opponent: string;
-  competition?: string;
+export type MatchDetails = {
   date: string;
   time?: string;
-  isHome?: boolean;
-  score?: string;
+  homeName?: string;
+  awayName?: string;
+  homeScore?: number;
+  awayScore?: number;
+  competitionName?: string;
+  venueCity?: string;
 };
 
-export type RankingSummary = {
-  position: number;
-  points: number;
+export type ClubResultsPayload = {
+  clubId: string;
+  lastMatch: MatchDetails | null;
+  nextMatch: MatchDetails | null;
+  updatedAt: string;
 };
 
-export type ClubResults = {
-  lastMatch: MatchSummary;
-  nextMatch: MatchSummary;
-  ranking: RankingSummary;
+export type ErrorPayload = {
+  error: true;
+  status: number;
+  message?: string;
 };

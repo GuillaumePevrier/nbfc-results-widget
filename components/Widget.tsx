@@ -1,12 +1,12 @@
 import styles from "./widget.module.css";
-import { ClubResults } from "@/types/results";
+import { ClubResultsPayload } from "@/types/results";
 import { ClubTeam } from "@/types/teams";
 import { MatchCard } from "./MatchCard";
 import { RankingCard } from "./RankingCard";
 
 interface WidgetProps {
   clubName: string;
-  results: ClubResults;
+  results: ClubResultsPayload;
   selectedTeamName?: string;
   availableTeams?: ClubTeam[];
 }
@@ -28,28 +28,24 @@ export function Widget({
         </h2>
         {selectedTeamName ? (
           <p style={{ color: "var(--muted)", marginTop: 4 }}>
-            Default team: {selectedTeamName}
+            Équipe par défaut : {selectedTeamName}
           </p>
         ) : null}
         {!selectedTeamName && availableTeams.length ? (
           <p style={{ color: "var(--muted)", marginTop: 4 }}>
-            Teams available: {availableTeams.length}
+            Équipes disponibles : {availableTeams.length}
           </p>
         ) : null}
       </header>
       <section className={styles.widgetCard}>
         <MatchCard
-          title="Last match"
-          badge="Full time"
+          title="Dernier match"
+          badge="Terminé"
           match={results.lastMatch}
           showScore
         />
-        <MatchCard
-          title="Next match"
-          badge="Upcoming"
-          match={results.nextMatch}
-        />
-        <RankingCard ranking={results.ranking} />
+        <MatchCard title="Prochain match" badge="À venir" match={results.nextMatch} />
+        <RankingCard ranking={null} />
       </section>
     </div>
   );
