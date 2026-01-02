@@ -36,6 +36,13 @@ const loadResults = async (
     const matches = await fetchClubResults(clubId, competitionId);
     const ranking = await fetchCompetitionRanking(competitionId);
 
+    if (!matches.lastMatch && !matches.nextMatch && competitionId) {
+      const fallbackMatches = await fetchClubResults(clubId);
+      if (fallbackMatches.lastMatch || fallbackMatches.nextMatch) {
+        return buildResultsPayload(clubId, fallbackMatches, null);
+      }
+    }
+
     if (!matches.lastMatch && !matches.nextMatch) {
       return { error: true, status: 502, message: "Aucun match disponible" };
     }
