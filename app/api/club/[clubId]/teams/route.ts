@@ -1,19 +1,50 @@
 import { NextResponse } from "next/server";
-import { getClubTeams, DEFAULT_CLUB_ID } from "@/lib/dofa";
+import { DEFAULT_CLUB_ID, extractClubNumber, mapTeamsResponse, selectDefaultTeam } from "@/lib/dofa";
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { clubId: string } }
-) {
-  const clubId = params.clubId || DEFAULT_CLUB_ID;
+const buildInternalUrl = (request: Request, path: string) => new URL(path, request.url).toString();
+
+const fetchProxy = (request: Request, path: string) =>
+  fetch(buildInternalUrl(request, path), { next: { revalidate: 0 } });
+
+const resolveClubId = async (request: Request, providedId: string): Promise<string> => {
+  const candidate = providedId || DEFAULT_CLUB_ID;
+  const infoResponse = await fetchProxy(request, `/api/dofa/club/${candidate}`);
+
+  if (infoResponse.ok) {
+    try {
+      const data = await infoResponse.json();
+      const resolved = extractClubNumber(data);
+      if (resolved) return resolved;
+    } catch (error) {
+      console.error("Unable to parse club info", error);
+    }
+  }
+
+  return candidate;
+};
+
+export async function GET(request: Request, { params }: { params: { clubId: string } }) {
+  const providedClubId = params.clubId || DEFAULT_CLUB_ID;
 
   try {
-    const teams = await getClubTeams(clubId);
-    return NextResponse.json(teams, { status: 200 });
+    const clubId = await resolveClubId(request, providedClubId);
+    const response = await fetchProxy(request, `/api/dofa/club/${clubId}/equipes`);
+    if (!response.ok) {
+      const errorPayload = {
+        error: true,
+        status: response.status,
+        message: "Erreur lors de la récupération des équipes",
+      };
+      return NextResponse.json(errorPayload, { status: response.status });
+    }
+
+    const data = await response.json();
+    const teams = mapTeamsResponse(data);
+    const defaultTeam = selectDefaultTeam(teams);
+
+    return NextResponse.json({ teams, defaultTeam }, { status: 200 });
   } catch (error) {
-    const status = (error as { status?: number })?.status ?? 502;
-    const message =
-      (error as Error)?.message ?? "Erreur lors de la récupération des équipes";
-    return NextResponse.json({ error: true, status, message }, { status });
+    const message = (error as Error)?.message ?? "Erreur lors de la récupération des équipes";
+    return NextResponse.json({ error: true, status: 500, message }, { status: 500 });
   }
 }

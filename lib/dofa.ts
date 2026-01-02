@@ -4,28 +4,9 @@ import { ClubResultsPayload, MatchDetails, RankingSummary } from "@/types/result
 export const DEFAULT_CLUB_ID = "24824";
 const API_BASE = "https://api-dofa.fff.fr/api";
 
-const DEFAULT_HEADERS = {
+export const DOFA_HEADERS = {
   Accept: "application/json",
-  "User-Agent": "Mozilla/5.0 (compatible; nbfc-results-widget/1.0)",
-};
-
-const withStatusError = async (response: Response) => {
-  if (response.ok) return response;
-  const error = new Error(`DOFA API responded with ${response.status}`) as Error & {
-    status?: number;
-  };
-  error.status = response.status;
-  throw error;
-};
-
-const fetchJson = async (path: string) => {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: DEFAULT_HEADERS,
-    next: { revalidate: 300 },
-  });
-
-  await withStatusError(response);
-  return response.json();
+  "User-Agent": "nbfc-results-widget/1.0 (contact: admin@noyalbrecefc.com)",
 };
 
 const toIsoString = (value: unknown): string | null => {
@@ -37,11 +18,11 @@ const toIsoString = (value: unknown): string | null => {
 const getCompetitionIdentifier = (entry: Record<string, unknown>): string | null => {
   const raw =
     entry["cp_no"] ??
-    entry.cpNo ??
-    entry.cpno ??
-    entry.competitionId ??
-    entry["competition_id"] ??
-    entry.competition;
+    entry["cpNo"] ??
+    entry["cpno"] ??
+    entry["competitionId"] ??
+    entry["competition"] ??
+    entry["competition_id"];
 
   if (raw === undefined || raw === null) return null;
 
@@ -53,66 +34,66 @@ const getCompetitionIdentifier = (entry: Record<string, unknown>): string | null
   return null;
 };
 
-const normalizeMatchDetails = (
-  match: unknown
-): (MatchDetails & { rawDate: string; competitionId: string | null }) | null => {
+type NormalizedMatch = MatchDetails & { rawDate: string };
+
+const normalizeMatchDetails = (match: unknown): NormalizedMatch | null => {
   if (!match || typeof match !== "object") return null;
   const entry = match as Record<string, unknown>;
 
   const date =
-    toIsoString(entry.date) ||
-    toIsoString((entry as Record<string, string>).dateMatch) ||
-    toIsoString((entry as Record<string, string>).jour) ||
-    toIsoString((entry as Record<string, string>).journee);
+    toIsoString(entry["date"]) ||
+    toIsoString((entry as Record<string, string>)["dateMatch"]) ||
+    toIsoString((entry as Record<string, string>)["jour"]) ||
+    toIsoString((entry as Record<string, string>)["journee"]);
 
   if (!date) return null;
 
   const homeName =
-    (entry.clubReceveur as string) ||
-    (entry.clubRecevant as string) ||
-    (entry.clubDomicile as string) ||
-    (entry.equipeDomicile as string) ||
-    (entry.homeTeam as string) ||
-    (entry.home as string) ||
-    (entry.equipeHome as string);
+    (entry["clubReceveur"] as string) ||
+    (entry["clubRecevant"] as string) ||
+    (entry["clubDomicile"] as string) ||
+    (entry["equipeDomicile"] as string) ||
+    (entry["homeTeam"] as string) ||
+    (entry["home"] as string) ||
+    (entry["equipeHome"] as string);
 
   const awayName =
-    (entry.clubVisiteur as string) ||
-    (entry.clubExterieur as string) ||
-    (entry.equipeExterieure as string) ||
-    (entry.awayTeam as string) ||
-    (entry.away as string) ||
-    (entry.equipeAway as string);
+    (entry["clubVisiteur"] as string) ||
+    (entry["clubExterieur"] as string) ||
+    (entry["equipeExterieure"] as string) ||
+    (entry["awayTeam"] as string) ||
+    (entry["away"] as string) ||
+    (entry["equipeAway"] as string);
 
   const competitionName =
-    (entry.competitionLibelle as string) ||
-    (entry.competitionLabel as string) ||
-    (entry.competition as string) ||
-    (entry.libelleCompetition as string);
+    (entry["competitionLibelle"] as string) ||
+    (entry["competitionLabel"] as string) ||
+    (entry["competition"] as string) ||
+    (entry["libelleCompetition"] as string);
 
   const competitionId = getCompetitionIdentifier(entry);
 
-  const venueCity = (entry.ville as string) || (entry.lieu as string) || (entry.stade as string);
+  const venueCity = (entry["ville"] as string) || (entry["lieu"] as string) || (entry["stade"] as string);
 
   const homeScore =
-    typeof entry.butsPour === "number"
-      ? (entry.butsPour as number)
-      : typeof entry.home_score === "number"
-        ? (entry.home_score as number)
-        : typeof entry.scoreDomicile === "number"
-          ? (entry.scoreDomicile as number)
+    typeof entry["butsPour"] === "number"
+      ? (entry["butsPour"] as number)
+      : typeof entry["home_score"] === "number"
+        ? (entry["home_score"] as number)
+        : typeof entry["scoreDomicile"] === "number"
+          ? (entry["scoreDomicile"] as number)
           : undefined;
 
   const awayScore =
-    typeof entry.butsContre === "number"
-      ? (entry.butsContre as number)
-      : typeof entry.away_score === "number"
-        ? (entry.away_score as number)
-        : typeof entry.scoreExterieur === "number"
-          ? (entry.scoreExterieur as number)
+    typeof entry["butsContre"] === "number"
+      ? (entry["butsContre"] as number)
+      : typeof entry["away_score"] === "number"
+        ? (entry["away_score"] as number)
+        : typeof entry["scoreExterieur"] === "number"
+          ? (entry["scoreExterieur"] as number)
           : undefined;
 
-  const time = (entry.heure as string) || (entry.horaire as string) || (entry.time as string);
+  const time = (entry["heure"] as string) || (entry["horaire"] as string) || (entry["time"] as string);
 
   return {
     rawDate: date,
@@ -123,43 +104,158 @@ const normalizeMatchDetails = (
     homeScore,
     awayScore,
     competitionName,
-    venueCity,
     competitionId,
+    venueCity,
   };
 };
 
-const findLastAndNextMatches = (
-  matches: unknown[],
+export const extractClubNumber = (data: unknown): string | null => {
+  if (!data || typeof data !== "object") return null;
+  const entry = data as Record<string, unknown>;
+  const raw = entry["cl_no"] ?? entry["clNo"] ?? entry["clno"];
+  if (typeof raw === "number" || typeof raw === "string") {
+    const normalized = String(raw).trim();
+    return normalized.length ? normalized : null;
+  }
+  return null;
+};
+
+export const parseMatches = (
+  resultsData: unknown,
+  calendarData?: unknown,
   competitionId?: string
 ): { lastMatch: MatchDetails | null; nextMatch: MatchDetails | null } => {
-  const normalized = matches
-    .map((match) => normalizeMatchDetails(match))
-    .filter(
-      (match): match is MatchDetails & { rawDate: string; competitionId: string | null } =>
-        Boolean(match)
-    )
+  const resultEntries = (Array.isArray((resultsData as { "hydra:member"?: unknown[] })?.["hydra:member"]) &&
+    (resultsData as { "hydra:member"?: unknown[] })?.["hydra:member"]) ||
+    (Array.isArray((resultsData as { resultat?: unknown[] })?.resultat) &&
+      (resultsData as { resultat?: unknown[] })?.resultat) ||
+    [];
+
+  const calendarEntries = (Array.isArray((calendarData as { "hydra:member"?: unknown[] })?.["hydra:member"]) &&
+    (calendarData as { "hydra:member"?: unknown[] })?.["hydra:member"]) ||
+    (Array.isArray((calendarData as { calendrier?: unknown[] })?.calendrier) &&
+      (calendarData as { calendrier?: unknown[] })?.calendrier) ||
+    [];
+
+  const normalizedResults = resultEntries
+    .map((entry) => normalizeMatchDetails(entry))
+    .filter((match): match is NormalizedMatch => Boolean(match))
     .filter((match) => (competitionId ? match.competitionId === competitionId : true));
 
-  if (!normalized.length) return { lastMatch: null, nextMatch: null };
+  const normalizedCalendar = calendarEntries
+    .map((entry) => normalizeMatchDetails(entry))
+    .filter((match): match is NormalizedMatch => Boolean(match))
+    .filter((match) => (competitionId ? match.competitionId === competitionId : true));
 
   const now = Date.now();
 
-  const completed = normalized.filter(
+  const completed = normalizedResults.filter(
     (match) => match.homeScore !== undefined && match.awayScore !== undefined
   );
   completed.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
 
-  const upcoming = normalized.filter((match) => {
+  const futureFromResults = normalizedResults.filter((match) => {
     const matchTime = new Date(match.rawDate).getTime();
     const hasScore = match.homeScore !== undefined && match.awayScore !== undefined;
     return !hasScore && matchTime >= now;
   });
-  upcoming.sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
+
+  const futureMatches = [...normalizedCalendar, ...futureFromResults];
+  futureMatches.sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
 
   return {
     lastMatch: completed[0] ?? null,
-    nextMatch: upcoming[0] ?? null,
+    nextMatch: futureMatches[0] ?? null,
   };
+};
+
+export const buildResultsPayload = (
+  clubId: string,
+  matches: { lastMatch: MatchDetails | null; nextMatch: MatchDetails | null },
+  ranking?: RankingSummary | null,
+  note?: string
+): ClubResultsPayload => ({
+  clubId,
+  lastMatch: matches.lastMatch,
+  nextMatch: matches.nextMatch,
+  ranking,
+  note,
+  updatedAt: new Date().toISOString(),
+});
+
+const fetchJson = async (path: string) => {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: DOFA_HEADERS,
+    next: { revalidate: 300 },
+  });
+
+  if (!response.ok) {
+    throw new Error(`DOFA API responded with status ${response.status}`);
+  }
+
+  return response.json();
+};
+
+const normalizeTeam = (team: unknown): ClubTeam | null => {
+  if (!team || typeof team !== "object") return null;
+  const entry = team as Record<string, unknown>;
+
+  const name =
+    (entry["nomEquipe"] as string) ||
+    (entry["libelleEquipe"] as string) ||
+    (entry["libelle"] as string) ||
+    (entry["name"] as string) ||
+    (entry["equipe"] as string);
+
+  if (!name) return null;
+
+  const competitionId =
+    entry["cp_no"] ??
+    entry["cpNo"] ??
+    entry["competitionId"] ??
+    entry["competition"] ??
+    entry["cpno"];
+
+  const categoryCode = (entry["categorie_code"] as string) || (entry["category_code"] as string);
+  const categoryLabel = (entry["categorie_libelle"] as string) || (entry["category_label"] as string);
+  const number =
+    (entry["numero"] as string) ||
+    (entry["number"] as string) ||
+    (typeof entry["numEquipe"] === "number" ? String(entry["numEquipe"]) : undefined);
+
+  return {
+    name,
+    competitionId: competitionId ? String(competitionId) : undefined,
+    categoryCode: categoryCode || undefined,
+    categoryLabel: categoryLabel || undefined,
+    number,
+  };
+};
+
+export const mapTeamsResponse = (data: unknown): ClubTeam[] => {
+  const parsed = data as { equipes?: unknown; teams?: unknown };
+
+  const teamsArray =
+    (Array.isArray(data) && data) ||
+    (Array.isArray(parsed?.equipes) && parsed.equipes) ||
+    (Array.isArray(parsed?.teams) && parsed.teams) ||
+    [];
+
+  return teamsArray
+    .map((team: unknown) => normalizeTeam(team))
+    .filter((team: ClubTeam | null): team is ClubTeam => Boolean(team));
+};
+
+export const selectDefaultTeam = (teams: ClubTeam[]): ClubTeam | null => {
+  if (!teams.length) return null;
+
+  const seniorTeams = teams.filter((team) => /senior/i.test(team.name));
+  const seniorA = seniorTeams.find((team) => /senior\s*A/i.test(team.name));
+
+  if (seniorA) return seniorA;
+  if (seniorTeams.length) return seniorTeams[0];
+
+  return teams[0];
 };
 
 export const fetchClubInfo = async (
@@ -180,84 +276,6 @@ export const fetchClubInfo = async (
     return null;
   }
 };
-
-export async function fetchClubResults(
-  clubId: string = DEFAULT_CLUB_ID,
-  competitionId?: string
-): Promise<{ lastMatch: MatchDetails | null; nextMatch: MatchDetails | null }> {
-  const activeClubId = clubId || DEFAULT_CLUB_ID;
-  const data = (await fetchJson(`/clubs/${activeClubId}/resultat`)) as {
-    "hydra:member"?: unknown[];
-    resultat?: unknown[];
-  };
-
-  const matches =
-    (Array.isArray(data?.["hydra:member"]) && data["hydra:member"]) ||
-    (Array.isArray(data?.resultat) && data.resultat) ||
-    [];
-
-  return findLastAndNextMatches(matches, competitionId);
-}
-
-const normalizeTeam = (team: unknown): ClubTeam | null => {
-  if (!team || typeof team !== "object") return null;
-  const entry = team as Record<string, unknown>;
-
-  const name =
-    (entry["nomEquipe"] as string) ||
-    (entry["libelleEquipe"] as string) ||
-    (entry["libelle"] as string) ||
-    (entry["name"] as string) ||
-    (entry["equipe"] as string);
-
-  if (!name) return null;
-
-  const competitionId =
-    entry["cp_no"] ?? entry["cpNo"] ?? entry["competitionId"] ?? entry["competition"] ?? entry["cpno"];
-
-  return {
-    name,
-    competitionId: competitionId ? String(competitionId) : undefined,
-  };
-};
-
-const mapTeamsResponse = (data: unknown): ClubTeam[] => {
-  const parsed = data as { equipes?: unknown; teams?: unknown };
-
-  const teamsArray =
-    (Array.isArray(data) && data) ||
-    (Array.isArray(parsed?.equipes) && parsed.equipes) ||
-    (Array.isArray(parsed?.teams) && parsed.teams) ||
-    [];
-
-  return teamsArray
-    .map((team: unknown) => normalizeTeam(team))
-    .filter((team: ClubTeam | null): team is ClubTeam => Boolean(team));
-};
-
-const selectDefaultTeam = (teams: ClubTeam[]): ClubTeam | null => {
-  if (!teams.length) return null;
-
-  const seniorTeams = teams.filter((team) => /senior/i.test(team.name));
-  const seniorA = seniorTeams.find((team) => /senior\s*A/i.test(team.name));
-
-  if (seniorA) return seniorA;
-  if (seniorTeams.length) return seniorTeams[0];
-
-  return teams[0];
-};
-
-export async function getClubTeams(clubId: string = DEFAULT_CLUB_ID): Promise<{
-  teams: ClubTeam[];
-  defaultTeam: ClubTeam | null;
-}> {
-  const activeClubId = clubId || DEFAULT_CLUB_ID;
-  const data = await fetchJson(`/clubs/${activeClubId}/equipes.json?filter=`);
-  const teams = mapTeamsResponse(data);
-  const defaultTeam = selectDefaultTeam(teams);
-
-  return { teams, defaultTeam };
-}
 
 const extractRankingEntry = (entry: Record<string, unknown>): RankingSummary | null => {
   const positionRaw = entry["position"] ?? entry["rang"] ?? entry["classement"] ?? entry["rank"];
@@ -297,10 +315,14 @@ export const fetchCompetitionRanking = async (
   if (!competitionId) return null;
 
   try {
-    const data = (await fetchJson(`/competitions/${competitionId}/classement`)) as {
-      "hydra:member"?: unknown[];
-      classement?: unknown[];
-    };
+    const response = await fetch(`${API_BASE}/competitions/${competitionId}/classement`, {
+      headers: DOFA_HEADERS,
+      next: { revalidate: 300 },
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as { "hydra:member"?: unknown[]; classement?: unknown[] };
 
     const entries =
       (Array.isArray(data?.["hydra:member"]) && data["hydra:member"]) ||
@@ -341,15 +363,3 @@ export const fetchCompetitionRanking = async (
     return null;
   }
 };
-
-export const buildResultsPayload = (
-  clubId: string,
-  matches: { lastMatch: MatchDetails | null; nextMatch: MatchDetails | null },
-  ranking?: RankingSummary | null
-): ClubResultsPayload => ({
-  clubId,
-  lastMatch: matches.lastMatch,
-  nextMatch: matches.nextMatch,
-  ranking,
-  updatedAt: new Date().toISOString(),
-});

@@ -1,46 +1,41 @@
 # nbfc-results-widget
 
-Modern web widget built with Next.js 14 (App Router + TypeScript) to display football club results and fixtures using the French Football Federation (FFF) DOFA API. Designed for responsive iframe embedding on WordPress (no WP-specific code required).
+Widget Next.js 14 (App Router + TypeScript) pour afficher les résultats et prochains matchs d'un club de foot via l'API DOFA de la FFF. Le widget est prévu pour une intégration en iframe (sans code WordPress spécifique) et n'utilise **aucune donnée mockée**.
 
-## Getting started
+## Démarrage
 
 ```bash
 npm install
 npm run dev
 ```
 
-- Widget page: `http://localhost:3000/widget?club=24824`
-- Results API route: `http://localhost:3000/api/club/{clubId}/results`
-- Teams API route: `http://localhost:3000/api/club/{clubId}/teams`
+- Widget : `http://localhost:3000/widget?club=24824`
+- Proxy DOFA (résultats) : `http://localhost:3000/api/dofa/club/24824/resultat`
+- Proxy DOFA (calendrier) : `http://localhost:3000/api/dofa/club/24824/calendrier`
+- Proxy DOFA (équipes) : `http://localhost:3000/api/dofa/club/24824/equipes`
+- Route interne simplifiée :
+  - Résultats : `http://localhost:3000/api/club/{clubId}/results?competitionId=<cp_no>`
+  - Équipes : `http://localhost:3000/api/club/{clubId}/teams`
 
-## Features
-- Server-side data fetching only (DOFA API via internal Next.js routes and server components).
-- Embed-friendly horizontal card layout with last match, next match, and ranking summary.
-- Team-aware widget with selectable competitions/teams via the internal teams endpoint (use `team=<cp_no>` in the query string).
-- Modern styling with blue/red/white palette, rounded cards, and soft shadows.
-- Clear "Données indisponibles" state if real data cannot be fetched (no fake fallbacks).
+## Fonctionnement
+- Toutes les données proviennent de l'API DOFA réelle (headers dédiés, pas de mock, cache 5 minutes côté proxy).
+- Le club par défaut est **cl_no = 24824** (NOYAL BRECE FC). Si un numéro d'affiliation est passé (ex: 547517) ou qu'un ID renvoie 404, l'appli tente automatiquement de récupérer le `cl_no` réel via `/api/dofa/club/{id}`.
+- La page `/widget` ne fait que des appels serveur vers les routes internes ; aucun appel client direct à DOFA.
+- Sélection d'équipe via un dropdown (basé sur les données de `/equipes`) qui filtre les matchs par compétition (`cp_no`).
+- États gérés : skeleton (loading), vide (`Aucun match disponible`), erreur (`Données indisponibles` + statut HTTP).
 
-## Project structure
-- `app/widget/page.tsx` – Renders the widget UI and pulls club data server-side with club defaults, team context, and ranking lookup.
-- `app/api/club/[clubId]/results/route.ts` – Server route proxying DOFA API with caching and error propagation.
-- `app/api/club/[clubId]/teams/route.ts` – Server route exposing the club's teams and default selection helper.
-- `components/Widget.tsx`, `MatchCard.tsx`, `RankingCard.tsx` – Core UI components.
-- `lib/dofa.ts` – Data fetching and normalization helpers for DOFA responses.
-- `types/results.ts` – Shared TypeScript types.
+## Structure
+- `app/api/dofa/club/[clubId]/*` : proxy DOFA (résultats, calendrier, équipes, info club) avec headers dédiés et propagation des statuts HTTP.
+- `app/api/club/[clubId]/results` : retourne un payload simplifié (dernier match, prochain match, ranking si dispo) sans fallback fictif.
+- `app/api/club/[clubId]/teams` : expose les équipes du club et l'équipe par défaut.
+- `app/widget/page.tsx` : page serveur qui charge club, équipes et résultats, applique le filtre compétition et affiche les états (erreur/vide).
+- `components/*` : Widget, MatchCard, RankingCard et styles (`widget.module.css`).
+- `lib/dofa.ts` : normalisation des matchs/équipes, sélection des matchs (dernier/prochain) et helpers génériques.
 
-## Finding your club ID and teams
-The widget defaults to **clubId = 24824**. If you see another club in the data returned by the DOFA API, use the steps below to confirm your own club identifier:
+## URLs de test en production
+- Widget : `/widget?club=24824`
+- Résultats proxy : `/api/dofa/club/24824/resultat`
+- Calendrier proxy : `/api/dofa/club/24824/calendrier`
+- Équipes proxy : `/api/dofa/club/24824/equipes`
 
-1. **Open the public DOFA endpoints for your suspected club ID** (no auth required):
-   - Results: `https://api-dofa.fff.fr/api/clubs/<clubId>/resultat`
-   - Teams: `https://api-dofa.fff.fr/api/clubs/<clubId>/equipes.json?filter=`
-   - If the club is correct, team names (Senior A / Senior B / U18, etc.) and recent matches should match what you expect.
-2. **If the data does not match, locate the right club ID:**
-   - Browse to your club page on the official FFF/Footclubs site while logged in, open DevTools → Network → XHR/Fetch, and look for calls to `api-dofa.fff.fr/api/clubs/<someId>/…`. The `<someId>` value is the clubId to use.
-   - Alternatively, start from a known working club URL (like the default 547517), then replace the number in the endpoints above with your suspected ID until the returned club/teams match yours.
-3. **Verify inside the widget:**
-   - Launch locally: `npm run dev`
-   - Load `http://localhost:3000/widget?club=<clubId>&clubName=Your%20Club`
-   - Confirm the “Default team” text and team count in the header reflect your club’s teams from the `/teams` endpoint.
-
-If you cannot find your club ID, share the club name and any known competition names; you can then test nearby IDs in the DOFA endpoints until you see the correct teams and fixtures.
+Si une équipe/compétition n'a aucun match (passé ou à venir), la réponse reste en HTTP 200 avec le message `Aucun match disponible` affiché dans le widget.

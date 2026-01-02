@@ -11,6 +11,7 @@ interface WidgetProps {
   selectedTeamId?: string;
   selectedTeamName?: string;
   availableTeams?: ClubTeam[];
+  note?: string;
 }
 
 export function Widget({
@@ -20,6 +21,7 @@ export function Widget({
   selectedTeamId,
   selectedTeamName,
   availableTeams = [],
+  note,
 }: WidgetProps) {
   const teamsWithIds = availableTeams.filter((team) => Boolean(team.competitionId));
 
@@ -72,13 +74,19 @@ export function Widget({
         ) : null}
       </header>
       <section className={styles.widgetCard}>
+        {note ? <p className={styles.note}>{note}</p> : null}
         <MatchCard
           title="Dernier match"
           badge="Terminé"
           match={results.lastMatch}
           showScore
         />
-        <MatchCard title="Prochain match" badge="À venir" match={results.nextMatch} />
+        <MatchCard
+          title="Prochain match"
+          badge="À venir"
+          match={results.nextMatch}
+          emptyText="Aucun match à venir"
+        />
         <RankingCard ranking={results.ranking ?? null} />
       </section>
     </div>

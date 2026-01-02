@@ -6,6 +6,7 @@ interface MatchCardProps {
   badge: string;
   match: MatchDetails | null;
   showScore?: boolean;
+  emptyText?: string;
 }
 
 const formatDate = (value?: string) => {
@@ -26,7 +27,7 @@ const formatTeamLine = (home?: string, away?: string) => {
   return `${home} vs ${away}`;
 };
 
-export function MatchCard({ title, badge, match, showScore }: MatchCardProps) {
+export function MatchCard({ title, badge, match, showScore, emptyText }: MatchCardProps) {
   if (!match) {
     return (
       <div className={styles.section}>
@@ -34,7 +35,7 @@ export function MatchCard({ title, badge, match, showScore }: MatchCardProps) {
           <span className={styles.titleAccent}>{title}</span>
           <span className={styles.badge}>{badge}</span>
         </div>
-        <div className={styles.matchOpp}>Données indisponibles</div>
+        <div className={styles.matchOpp}>{emptyText || "Aucun match disponible"}</div>
         <div className={styles.meta}>Aucune information récupérée</div>
       </div>
     );

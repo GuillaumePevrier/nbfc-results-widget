@@ -6,6 +6,7 @@ export type MatchDetails = {
   homeScore?: number;
   awayScore?: number;
   competitionName?: string;
+  competitionId?: string | null;
   venueCity?: string;
 };
 
@@ -21,12 +22,14 @@ export type ClubResultsPayload = {
   nextMatch: MatchDetails | null;
   ranking?: RankingSummary | null;
   updatedAt: string;
+  note?: string;
 };
 
 export type ErrorPayload = {
   error: true;
   status: number;
   message?: string;
+  detail?: string;
 };
 
 export const isErrorPayload = (value: unknown): value is ErrorPayload => {
