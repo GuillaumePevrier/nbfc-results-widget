@@ -15,6 +15,8 @@ npm run dev
 - Proxy DOFA équipes : `http://localhost:3000/api/dofa/teams?clNo=24824`
 - Proxy info club : `http://localhost:3000/api/dofa/club/24824`
 - Proxy calendrier brut (utilisé pour les matchs à venir) : `http://localhost:3000/api/dofa/club/24824/calendrier`
+- Proxy classement : `http://localhost:3000/api/dofa/ranking?cpNo=<cp_no>`
+- Page de test avec boutons : `http://localhost:3000/tools`
 
 ## Fonctionnement
 - Toutes les données proviennent de l'API DOFA réelle (headers dédiés, pas de mock).
@@ -26,6 +28,7 @@ npm run dev
 ## Structure
 - `app/api/dofa/results` : proxy DOFA pour les résultats, avec gestion d'erreur claire, timeout et cache 60s.
 - `app/api/dofa/teams` : proxy DOFA pour les équipes (liste simplifiée, compétitions incluses).
+- `app/api/dofa/ranking` : proxy DOFA pour le classement d'une compétition (paramètre `cpNo`).
 - `app/api/dofa/club/[clubId]/*` : proxies bruts (info club, calendrier, etc.).
 - `app/widget/page.tsx` : page serveur qui résout le club, charge équipes + résultats réels, applique le filtre compétition et affiche les états (erreur/vide).
 - `components/*` : Widget, MatchCard, RankingCard et styles (`widget.module.css`).
@@ -36,5 +39,7 @@ npm run dev
 - Résultats proxy : `/api/dofa/results?clNo=24824`
 - Équipes proxy : `/api/dofa/teams?clNo=24824`
 - Calendrier proxy : `/api/dofa/club/24824/calendrier`
+- Classement proxy (ajoutez `cpNo`) : `/api/dofa/ranking?cpNo=`
+- Page de test avec boutons : `/tools`
 
 Si aucune rencontre n'est disponible, le widget affiche `Aucun match disponible` en HTTP 200 (pas de données fictives).
