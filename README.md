@@ -26,3 +26,20 @@ npm run dev
 - `components/Widget.tsx`, `MatchCard.tsx`, `RankingCard.tsx` – Core UI components.
 - `lib/dofa.ts`, `lib/mockData.ts` – Data fetching, team parsing, and mock responses.
 - `types/results.ts` – Shared TypeScript types.
+
+## Finding your club ID and teams
+The widget defaults to **clubId = 547517**. If you see another club in the data returned by the DOFA API, use the steps below to confirm your own club identifier:
+
+1. **Open the public DOFA endpoints for your suspected club ID** (no auth required):
+   - Results: `https://api-dofa.fff.fr/api/clubs/<clubId>/resultat`
+   - Teams: `https://api-dofa.fff.fr/api/clubs/<clubId>/equipes.json?filter=`
+   - If the club is correct, team names (Senior A / Senior B / U18, etc.) and recent matches should match what you expect.
+2. **If the data does not match, locate the right club ID:**
+   - Browse to your club page on the official FFF/Footclubs site while logged in, open DevTools → Network → XHR/Fetch, and look for calls to `api-dofa.fff.fr/api/clubs/<someId>/…`. The `<someId>` value is the clubId to use.
+   - Alternatively, start from a known working club URL (like the default 547517), then replace the number in the endpoints above with your suspected ID until the returned club/teams match yours.
+3. **Verify inside the widget:**
+   - Launch locally: `npm run dev`
+   - Load `http://localhost:3000/widget?club=<clubId>&clubName=Your%20Club`
+   - Confirm the “Default team” text and team count in the header reflect your club’s teams from the `/teams` endpoint.
+
+If you cannot find your club ID, share the club name and any known competition names; you can then test nearby IDs in the DOFA endpoints until you see the correct teams and fixtures.
