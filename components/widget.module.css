@@ -82,6 +82,56 @@
   align-items: flex-start;
 }
 
+.teamSelector {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.teamLabel {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.teamControls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.teamSelect {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(31, 60, 136, 0.16);
+  background: #fff;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.teamSubmit {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: #fff;
+  border: none;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.16s ease;
+  box-shadow: 0 8px 20px rgba(31, 60, 136, 0.2);
+}
+
+.teamSubmit:hover {
+  transform: translateY(-1px);
+}
+
+.teamHelper {
+  margin: 0;
+  color: var(--muted);
+}
+
 .rankNumber {
   font-size: 2.4rem;
   font-weight: 800;

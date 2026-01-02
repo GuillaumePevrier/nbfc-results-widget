@@ -1,7 +1,7 @@
 import { ClubTeam } from "@/types/teams";
 import { MatchDetails } from "@/types/results";
 
-export const DEFAULT_CLUB_ID = "547517";
+export const DEFAULT_CLUB_ID = "24824";
 const API_BASE = "https://api-dofa.fff.fr/api";
 
 const toDateValue = (value: unknown): string | null => {
@@ -10,7 +10,28 @@ const toDateValue = (value: unknown): string | null => {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
 
-const normalizeMatchDetails = (match: unknown): (MatchDetails & { rawDate: string }) | null => {
+const getCompetitionIdentifier = (entry: Record<string, unknown>): string | null => {
+  const raw =
+    entry["cp_no"] ??
+    entry.cpNo ??
+    entry.cpno ??
+    entry.competitionId ??
+    entry["competition_id"] ??
+    entry.competition;
+
+  if (raw === undefined || raw === null) return null;
+
+  if (typeof raw === "number" || typeof raw === "string") {
+    const normalized = String(raw).trim();
+    return normalized.length ? normalized : null;
+  }
+
+  return null;
+};
+
+const normalizeMatchDetails = (
+  match: unknown
+): (MatchDetails & { rawDate: string; competitionId: string | null }) | null => {
   if (!match || typeof match !== "object") return null;
   const entry = match as Record<string, unknown>;
 
@@ -45,6 +66,8 @@ const normalizeMatchDetails = (match: unknown): (MatchDetails & { rawDate: strin
     (entry.competition as string) ||
     (entry.libelleCompetition as string);
 
+  const competitionId = getCompetitionIdentifier(entry);
+
   const venueCity = (entry.ville as string) || (entry.lieu as string) || (entry.stade as string);
 
   const homeScore =
@@ -77,16 +100,26 @@ const normalizeMatchDetails = (match: unknown): (MatchDetails & { rawDate: strin
     awayScore,
     competitionName,
     venueCity,
+    competitionId,
   };
 };
 
-const findLastAndNextMatches = (matches: unknown[]): {
+const findLastAndNextMatches = (
+  matches: unknown[],
+  competitionId?: string
+): {
   lastMatch: MatchDetails | null;
   nextMatch: MatchDetails | null;
 } => {
   const normalized = matches
     .map((match) => normalizeMatchDetails(match))
-    .filter((match): match is MatchDetails & { rawDate: string } => Boolean(match));
+    .filter(
+      (match): match is MatchDetails & { rawDate: string; competitionId: string | null } =>
+        Boolean(match)
+    )
+    .filter((match) =>
+      competitionId ? match.competitionId === competitionId : true
+    );
 
   if (!normalized.length) return { lastMatch: null, nextMatch: null };
 
@@ -109,7 +142,8 @@ const findLastAndNextMatches = (matches: unknown[]): {
 };
 
 export async function fetchClubResults(
-  clubId: string = DEFAULT_CLUB_ID
+  clubId: string = DEFAULT_CLUB_ID,
+  competitionId?: string
 ): Promise<{ lastMatch: MatchDetails | null; nextMatch: MatchDetails | null }> {
   const activeClubId = clubId || DEFAULT_CLUB_ID;
   const endpoint = `${API_BASE}/clubs/${activeClubId}/resultat`;
@@ -136,7 +170,7 @@ export async function fetchClubResults(
     (Array.isArray(data?.resultat) && data.resultat) ||
     [];
 
-  const { lastMatch, nextMatch } = findLastAndNextMatches(matches);
+  const { lastMatch, nextMatch } = findLastAndNextMatches(matches, competitionId);
 
   return { lastMatch, nextMatch };
 }

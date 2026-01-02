@@ -6,23 +6,29 @@ interface WidgetPageProps {
   searchParams?: {
     club?: string;
     clubName?: string;
+    team?: string;
   };
 }
 
 export const revalidate = 0;
 
-const fetchResults = async (clubId: string): Promise<ClubResultsPayload | ErrorPayload> => {
+const fetchResults = async (
+  clubId: string,
+  competitionId?: string
+): Promise<ClubResultsPayload | ErrorPayload> => {
   const baseUrl =
     process.env.NEXT_PUBLIC_BASE_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
 
-  const response = await fetch(`${baseUrl}/api/club/${clubId}/results`, {
+  const query = competitionId ? `?competitionId=${encodeURIComponent(competitionId)}` : "";
+  const response = await fetch(`${baseUrl}/api/club/${clubId}/results${query}`, {
     next: { revalidate: 300 },
   });
 
   const data = (await response.json()) as ClubResultsPayload | ErrorPayload;
   if (!response.ok) {
-    return { error: true, status: response.status, message: data?.message };
+    const message = "message" in data ? data.message : undefined;
+    return { error: true, status: response.status, message };
   }
 
   return data;
@@ -31,14 +37,24 @@ const fetchResults = async (clubId: string): Promise<ClubResultsPayload | ErrorP
 export default async function WidgetPage({ searchParams }: WidgetPageProps) {
   const clubId = searchParams?.club || DEFAULT_CLUB_ID;
   const clubName = searchParams?.clubName || `Club ${clubId}`;
+  const requestedTeam = searchParams?.team;
 
-  const resultsPromise = fetchResults(clubId);
-  const teamsPromise = getClubTeams(clubId).catch(() => ({
-    teams: [],
-    defaultTeam: null,
-  }));
+  const resultsPromise = getClubTeams(clubId)
+    .then(({ teams, defaultTeam }) => {
+      const selectedTeam = teams.find((team) => team.competitionId === requestedTeam) || defaultTeam;
+      const selectedCompetitionId = selectedTeam?.competitionId;
+      const results = fetchResults(clubId, selectedCompetitionId);
+      return Promise.all([Promise.resolve({ teams, defaultTeam, selectedTeam }), results]);
+    })
+    .catch(async () => {
+      const results = await fetchResults(clubId);
+      return [
+        { teams: [], defaultTeam: null, selectedTeam: null },
+        results,
+      ] as const;
+    });
 
-  const [results, { defaultTeam, teams }] = await Promise.all([resultsPromise, teamsPromise]);
+  const [{ teams, defaultTeam, selectedTeam }, results] = await resultsPromise;
 
   if ((results as ErrorPayload).error) {
     const error = results as ErrorPayload;
@@ -71,7 +87,9 @@ export default async function WidgetPage({ searchParams }: WidgetPageProps) {
       <Widget
         clubName={clubName}
         results={data}
-        selectedTeamName={defaultTeam?.name}
+        clubId={clubId}
+        selectedTeamId={selectedTeam?.competitionId}
+        selectedTeamName={selectedTeam?.name}
         availableTeams={teams}
       />
     </main>

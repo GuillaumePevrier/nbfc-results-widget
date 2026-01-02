@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import { DEFAULT_CLUB_ID, fetchClubResults } from "@/lib/dofa";
 import { ClubResultsPayload, ErrorPayload } from "@/types/results";
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { clubId: string } }
-) {
+export async function GET(request: Request, { params }: { params: { clubId: string } }) {
   const clubId = params.clubId || DEFAULT_CLUB_ID;
+  const { searchParams } = new URL(request.url);
+  const competitionId = searchParams.get("competitionId") || undefined;
 
   try {
-    const { lastMatch, nextMatch } = await fetchClubResults(clubId);
+    const { lastMatch, nextMatch } = await fetchClubResults(clubId, competitionId);
 
     if (!lastMatch && !nextMatch) {
       const status = 502;

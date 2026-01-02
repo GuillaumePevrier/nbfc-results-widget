@@ -9,13 +9,14 @@ npm install
 npm run dev
 ```
 
-- Widget page: `http://localhost:3000/widget?club=547517&clubName=Your%20Club`
+- Widget page: `http://localhost:3000/widget?club=24824&clubName=Your%20Club`
 - Results API route: `http://localhost:3000/api/club/{clubId}/results`
 - Teams API route: `http://localhost:3000/api/club/{clubId}/teams`
 
 ## Features
 - Server-side data fetching only (DOFA API via internal Next.js routes).
 - Embed-friendly horizontal card layout with last match, next match, and ranking summary.
+- Team-aware widget with selectable competitions/teams via the internal teams endpoint.
 - Modern styling with blue/red/white palette, rounded cards, and soft shadows.
 - Clear "Données indisponibles" state if real data cannot be fetched (no fake fallbacks).
 
@@ -28,7 +29,7 @@ npm run dev
 - `types/results.ts` – Shared TypeScript types.
 
 ## Finding your club ID and teams
-The widget defaults to **clubId = 547517**. If you see another club in the data returned by the DOFA API, use the steps below to confirm your own club identifier:
+The widget defaults to **clubId = 24824**. If you see another club in the data returned by the DOFA API, use the steps below to confirm your own club identifier:
 
 1. **Open the public DOFA endpoints for your suspected club ID** (no auth required):
    - Results: `https://api-dofa.fff.fr/api/clubs/<clubId>/resultat`

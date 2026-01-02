@@ -19,7 +19,7 @@ export default function HomePage() {
           Embed-ready football results widget built with Next.js 14 and the FFF DOFA API.
         </p>
         <Link
-          href="/widget?club=547517"
+          href="/widget?club=24824"
           style={{
             display: "inline-flex",
             alignItems: "center",
