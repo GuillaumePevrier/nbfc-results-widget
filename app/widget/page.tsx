@@ -1,6 +1,7 @@
 import { DEFAULT_CLUB_ID, getClubTeams } from "@/lib/dofa";
 import { Widget } from "@/components/Widget";
 import { ClubResultsPayload, ErrorPayload } from "@/types/results";
+import { ClubTeam } from "@/types/teams";
 
 interface WidgetPageProps {
   searchParams?: {
@@ -39,22 +40,22 @@ export default async function WidgetPage({ searchParams }: WidgetPageProps) {
   const clubName = searchParams?.clubName || `Club ${clubId}`;
   const requestedTeam = searchParams?.team;
 
-  const resultsPromise = getClubTeams(clubId)
-    .then(({ teams, defaultTeam }) => {
-      const selectedTeam = teams.find((team) => team.competitionId === requestedTeam) || defaultTeam;
-      const selectedCompetitionId = selectedTeam?.competitionId;
-      const results = fetchResults(clubId, selectedCompetitionId);
-      return Promise.all([Promise.resolve({ teams, defaultTeam, selectedTeam }), results]);
-    })
-    .catch(async () => {
-      const results = await fetchResults(clubId);
-      return [
-        { teams: [], defaultTeam: null, selectedTeam: null },
-        results,
-      ] as const;
-    });
+  let teams: ClubTeam[] = [];
+  let defaultTeam: ClubTeam | null = null;
 
-  const [{ teams, defaultTeam, selectedTeam }, results] = await resultsPromise;
+  try {
+    const teamData = await getClubTeams(clubId);
+    teams = teamData.teams;
+    defaultTeam = teamData.defaultTeam;
+  } catch (error) {
+    console.error("Failed to load teams", error);
+  }
+
+  const selectedTeam =
+    teams.find((team) => team.competitionId === requestedTeam) || defaultTeam || null;
+  const selectedCompetitionId = selectedTeam?.competitionId;
+
+  const results = await fetchResults(clubId, selectedCompetitionId);
 
   if ((results as ErrorPayload).error) {
     const error = results as ErrorPayload;
