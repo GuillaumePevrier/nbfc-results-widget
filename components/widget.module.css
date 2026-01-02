@@ -1,0 +1,165 @@
+.widgetWrapper {
+  width: 100%;
+  max-width: 960px;
+}
+
+.widgetCard {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing);
+  background: var(--card-bg);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid rgba(31, 60, 136, 0.08);
+}
+
+.section {
+  background: linear-gradient(145deg, #ffffff, #f9fbff);
+  border-radius: 12px;
+  padding: 14px;
+  border: 1px solid rgba(31, 60, 136, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.titleAccent {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.badge {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: white;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+}
+
+.matchOpp {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.score {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.homeAway {
+  padding: 6px 10px;
+  background: rgba(31, 60, 136, 0.08);
+  color: var(--primary);
+  border-radius: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  width: fit-content;
+}
+
+.rankingCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.teamSelector {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.teamLabel {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.teamControls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.teamSelect {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(31, 60, 136, 0.16);
+  background: #fff;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.teamSubmit {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: #fff;
+  border: none;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.16s ease;
+  box-shadow: 0 8px 20px rgba(31, 60, 136, 0.2);
+}
+
+.teamSubmit:hover {
+  transform: translateY(-1px);
+}
+
+.teamHelper {
+  margin: 0;
+  color: var(--muted);
+}
+
+.rankNumber {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.points {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(246, 75, 81, 0.1);
+  color: var(--accent);
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .widgetCard {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 500px) {
+  .widgetCard {
+    padding: 16px;
+  }
+  .matchOpp {
+    font-size: 1rem;
+  }
+}
