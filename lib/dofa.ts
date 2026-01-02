@@ -135,7 +135,7 @@ const mapTeamsResponse = (data: any): ClubTeam[] => {
     [];
 
   return teamsArray
-    .map((team) => normalizeTeam(team))
+    .map((team: any) => normalizeTeam(team))
     .filter((team): team is ClubTeam => Boolean(team));
 };
 
