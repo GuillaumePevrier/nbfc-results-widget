@@ -127,16 +127,18 @@ const normalizeTeam = (team: any): ClubTeam | null => {
   };
 };
 
-const mapTeamsResponse = (data: any): ClubTeam[] => {
+const mapTeamsResponse = (data: unknown): ClubTeam[] => {
+  const parsed = data as { equipes?: unknown; teams?: unknown };
+
   const teamsArray =
     (Array.isArray(data) && data) ||
-    (Array.isArray(data?.equipes) && data.equipes) ||
-    (Array.isArray(data?.teams) && data.teams) ||
+    (Array.isArray(parsed?.equipes) && parsed.equipes) ||
+    (Array.isArray(parsed?.teams) && parsed.teams) ||
     [];
 
   return teamsArray
-    .map((team: any) => normalizeTeam(team))
-    .filter((team): team is ClubTeam => Boolean(team));
+    .map((team: unknown) => normalizeTeam(team))
+    .filter((team: ClubTeam | null): team is ClubTeam => Boolean(team));
 };
 
 const selectDefaultTeam = (teams: ClubTeam[]): ClubTeam | null => {
