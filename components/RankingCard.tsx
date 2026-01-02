@@ -1,15 +1,11 @@
 import styles from "./widget.module.css";
 
 interface RankingCardProps {
-  ranking?: { position?: number; points?: number } | null;
+  ranking?: { position?: number; points?: number; competitionName?: string } | null;
 }
 
 export function RankingCard({ ranking }: RankingCardProps) {
-  const hasData =
-    ranking !== null &&
-    ranking !== undefined &&
-    ranking.position !== undefined &&
-    ranking.points !== undefined;
+  const hasPosition = ranking !== null && ranking !== undefined && ranking.position !== undefined;
 
   return (
     <div className={`${styles.section} ${styles.rankingCard}`}>
@@ -17,13 +13,16 @@ export function RankingCard({ ranking }: RankingCardProps) {
         <span className={styles.titleAccent}>Classement</span>
         <span className={styles.badge}>Résumé</span>
       </div>
-      {hasData ? (
+      {hasPosition ? (
         <>
           <div className={styles.rankNumber}>#{ranking!.position}</div>
           <div className={styles.points}>
             <span>Points</span>
-            <strong>{ranking!.points}</strong>
+            <strong>{ranking!.points ?? "-"}</strong>
           </div>
+          {ranking?.competitionName ? (
+            <p className={styles.meta}>{ranking.competitionName}</p>
+          ) : null}
         </>
       ) : (
         <div className={styles.meta}>Données indisponibles</div>

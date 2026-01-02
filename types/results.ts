@@ -9,10 +9,17 @@ export type MatchDetails = {
   venueCity?: string;
 };
 
+export type RankingSummary = {
+  position: number;
+  points?: number;
+  competitionName?: string;
+};
+
 export type ClubResultsPayload = {
   clubId: string;
   lastMatch: MatchDetails | null;
   nextMatch: MatchDetails | null;
+  ranking?: RankingSummary | null;
   updatedAt: string;
 };
 
@@ -20,4 +27,14 @@ export type ErrorPayload = {
   error: true;
   status: number;
   message?: string;
+};
+
+export const isErrorPayload = (value: unknown): value is ErrorPayload => {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "error" in value &&
+    (value as { error: unknown }).error === true &&
+    typeof (value as { status?: unknown }).status === "number"
+  );
 };

@@ -1,13 +1,37 @@
 import { ClubTeam } from "@/types/teams";
-import { MatchDetails } from "@/types/results";
+import { ClubResultsPayload, MatchDetails, RankingSummary } from "@/types/results";
 
 export const DEFAULT_CLUB_ID = "24824";
 const API_BASE = "https://api-dofa.fff.fr/api";
 
-const toDateValue = (value: unknown): string | null => {
+const DEFAULT_HEADERS = {
+  Accept: "application/json",
+  "User-Agent": "Mozilla/5.0 (compatible; nbfc-results-widget/1.0)",
+};
+
+const withStatusError = async (response: Response) => {
+  if (response.ok) return response;
+  const error = new Error(`DOFA API responded with ${response.status}`) as Error & {
+    status?: number;
+  };
+  error.status = response.status;
+  throw error;
+};
+
+const fetchJson = async (path: string) => {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: DEFAULT_HEADERS,
+    next: { revalidate: 300 },
+  });
+
+  await withStatusError(response);
+  return response.json();
+};
+
+const toIsoString = (value: unknown): string | null => {
   if (!value || typeof value !== "string") return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 };
 
 const getCompetitionIdentifier = (entry: Record<string, unknown>): string | null => {
@@ -36,10 +60,10 @@ const normalizeMatchDetails = (
   const entry = match as Record<string, unknown>;
 
   const date =
-    toDateValue(entry.date as string) ||
-    toDateValue((entry as Record<string, string>).dateMatch) ||
-    toDateValue((entry as Record<string, string>).jour) ||
-    toDateValue((entry as Record<string, string>).journee);
+    toIsoString(entry.date) ||
+    toIsoString((entry as Record<string, string>).dateMatch) ||
+    toIsoString((entry as Record<string, string>).jour) ||
+    toIsoString((entry as Record<string, string>).journee);
 
   if (!date) return null;
 
@@ -107,19 +131,14 @@ const normalizeMatchDetails = (
 const findLastAndNextMatches = (
   matches: unknown[],
   competitionId?: string
-): {
-  lastMatch: MatchDetails | null;
-  nextMatch: MatchDetails | null;
-} => {
+): { lastMatch: MatchDetails | null; nextMatch: MatchDetails | null } => {
   const normalized = matches
     .map((match) => normalizeMatchDetails(match))
     .filter(
       (match): match is MatchDetails & { rawDate: string; competitionId: string | null } =>
         Boolean(match)
     )
-    .filter((match) =>
-      competitionId ? match.competitionId === competitionId : true
-    );
+    .filter((match) => (competitionId ? match.competitionId === competitionId : true));
 
   if (!normalized.length) return { lastMatch: null, nextMatch: null };
 
@@ -130,9 +149,11 @@ const findLastAndNextMatches = (
   );
   completed.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
 
-  const upcoming = normalized.filter(
-    (match) => (match.homeScore === undefined || match.awayScore === undefined) && new Date(match.rawDate).getTime() >= now
-  );
+  const upcoming = normalized.filter((match) => {
+    const matchTime = new Date(match.rawDate).getTime();
+    const hasScore = match.homeScore !== undefined && match.awayScore !== undefined;
+    return !hasScore && matchTime >= now;
+  });
   upcoming.sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
 
   return {
@@ -141,52 +162,58 @@ const findLastAndNextMatches = (
   };
 };
 
+export const fetchClubInfo = async (
+  clubId: string = DEFAULT_CLUB_ID
+): Promise<{ name?: string; city?: string } | null> => {
+  try {
+    const data = (await fetchJson(`/clubs/${clubId}.json`)) as Record<string, unknown>;
+    return {
+      name:
+        (data["nom"] as string) ||
+        (data["nomClub"] as string) ||
+        (data["name"] as string) ||
+        (data["club"] as string),
+      city: (data["ville"] as string) || (data["city"] as string),
+    };
+  } catch (error) {
+    console.error("Failed to fetch club info", error);
+    return null;
+  }
+};
+
 export async function fetchClubResults(
   clubId: string = DEFAULT_CLUB_ID,
   competitionId?: string
 ): Promise<{ lastMatch: MatchDetails | null; nextMatch: MatchDetails | null }> {
   const activeClubId = clubId || DEFAULT_CLUB_ID;
-  const endpoint = `${API_BASE}/clubs/${activeClubId}/resultat`;
+  const data = (await fetchJson(`/clubs/${activeClubId}/resultat`)) as {
+    "hydra:member"?: unknown[];
+    resultat?: unknown[];
+  };
 
-  const response = await fetch(endpoint, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Mozilla/5.0 (compatible; nbfc-results-widget/1.0)",
-    },
-    next: { revalidate: 300 },
-  });
-
-  if (!response.ok) {
-    const error = new Error(`DOFA API responded with ${response.status}`) as Error & {
-      status?: number;
-    };
-    error.status = response.status;
-    throw error;
-  }
-
-  const data = (await response.json()) as { "hydra:member"?: unknown[]; resultat?: unknown[] };
   const matches =
     (Array.isArray(data?.["hydra:member"]) && data["hydra:member"]) ||
     (Array.isArray(data?.resultat) && data.resultat) ||
     [];
 
-  const { lastMatch, nextMatch } = findLastAndNextMatches(matches, competitionId);
-
-  return { lastMatch, nextMatch };
+  return findLastAndNextMatches(matches, competitionId);
 }
 
-const normalizeTeam = (team: any): ClubTeam | null => {
+const normalizeTeam = (team: unknown): ClubTeam | null => {
+  if (!team || typeof team !== "object") return null;
+  const entry = team as Record<string, unknown>;
+
   const name =
-    team?.nomEquipe ??
-    team?.libelleEquipe ??
-    team?.libelle ??
-    team?.name ??
-    team?.equipe;
+    (entry["nomEquipe"] as string) ||
+    (entry["libelleEquipe"] as string) ||
+    (entry["libelle"] as string) ||
+    (entry["name"] as string) ||
+    (entry["equipe"] as string);
 
   if (!name) return null;
 
   const competitionId =
-    team?.cp_no ?? team?.cpNo ?? team?.competitionId ?? team?.competition ?? team?.cpno;
+    entry["cp_no"] ?? entry["cpNo"] ?? entry["competitionId"] ?? entry["competition"] ?? entry["cpno"];
 
   return {
     name,
@@ -225,27 +252,104 @@ export async function getClubTeams(clubId: string = DEFAULT_CLUB_ID): Promise<{
   defaultTeam: ClubTeam | null;
 }> {
   const activeClubId = clubId || DEFAULT_CLUB_ID;
-  const endpoint = `${API_BASE}/clubs/${activeClubId}/equipes.json?filter=`;
-
-  const response = await fetch(endpoint, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Mozilla/5.0 (compatible; nbfc-results-widget/1.0)",
-    },
-    next: { revalidate: 300 },
-  });
-
-  if (!response.ok) {
-    const error = new Error(`DOFA API responded with ${response.status}`) as Error & {
-      status?: number;
-    };
-    error.status = response.status;
-    throw error;
-  }
-
-  const data = await response.json();
+  const data = await fetchJson(`/clubs/${activeClubId}/equipes.json?filter=`);
   const teams = mapTeamsResponse(data);
   const defaultTeam = selectDefaultTeam(teams);
 
   return { teams, defaultTeam };
 }
+
+const extractRankingEntry = (entry: Record<string, unknown>): RankingSummary | null => {
+  const positionRaw = entry["position"] ?? entry["rang"] ?? entry["classement"] ?? entry["rank"];
+  const pointsRaw = entry["points"] ?? entry["pts"] ?? entry["nbPoints"];
+  const competitionName =
+    (entry["competition"] as string) ||
+    (entry["competitionLibelle"] as string) ||
+    (entry["libelleCompetition"] as string);
+
+  const positionNumber =
+    typeof positionRaw === "number"
+      ? positionRaw
+      : typeof positionRaw === "string"
+        ? Number.parseInt(positionRaw, 10)
+        : undefined;
+
+  if (!positionNumber || Number.isNaN(positionNumber)) return null;
+
+  const points =
+    typeof pointsRaw === "number"
+      ? pointsRaw
+      : typeof pointsRaw === "string"
+        ? Number.parseInt(pointsRaw, 10)
+        : undefined;
+
+  return {
+    position: positionNumber,
+    points,
+    competitionName,
+  };
+};
+
+export const fetchCompetitionRanking = async (
+  competitionId?: string,
+  clubName?: string
+): Promise<RankingSummary | null> => {
+  if (!competitionId) return null;
+
+  try {
+    const data = (await fetchJson(`/competitions/${competitionId}/classement`)) as {
+      "hydra:member"?: unknown[];
+      classement?: unknown[];
+    };
+
+    const entries =
+      (Array.isArray(data?.["hydra:member"]) && data["hydra:member"]) ||
+      (Array.isArray(data?.classement) && data.classement) ||
+      [];
+
+    const normalized = entries
+      .map((item) => (item && typeof item === "object" ? extractRankingEntry(item as Record<string, unknown>) : null))
+      .filter((entry: RankingSummary | null): entry is RankingSummary => Boolean(entry));
+
+    if (!normalized.length) return null;
+
+    if (clubName) {
+      const match = entries.find((item) => {
+        if (!item || typeof item !== "object") return false;
+        const entry = item as Record<string, unknown>;
+        const nameCandidate =
+          (entry["club"] as string) ||
+          (entry["nomClub"] as string) ||
+          (entry["club_nom"] as string) ||
+          (entry["equipe"] as string) ||
+          (entry["equipe_nom"] as string);
+        return nameCandidate
+          ? nameCandidate.toLowerCase().includes(clubName.toLowerCase()) ||
+              clubName.toLowerCase().includes(nameCandidate.toLowerCase())
+          : false;
+      });
+
+      if (match && typeof match === "object") {
+        const normalizedMatch = extractRankingEntry(match as Record<string, unknown>);
+        if (normalizedMatch) return normalizedMatch;
+      }
+    }
+
+    return normalized[0] ?? null;
+  } catch (error) {
+    console.error("Unable to load ranking", error);
+    return null;
+  }
+};
+
+export const buildResultsPayload = (
+  clubId: string,
+  matches: { lastMatch: MatchDetails | null; nextMatch: MatchDetails | null },
+  ranking?: RankingSummary | null
+): ClubResultsPayload => ({
+  clubId,
+  lastMatch: matches.lastMatch,
+  nextMatch: matches.nextMatch,
+  ranking,
+  updatedAt: new Date().toISOString(),
+});

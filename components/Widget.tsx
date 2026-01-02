@@ -79,7 +79,7 @@ export function Widget({
           showScore
         />
         <MatchCard title="Prochain match" badge="À venir" match={results.nextMatch} />
-        <RankingCard ranking={null} />
+        <RankingCard ranking={results.ranking ?? null} />
       </section>
     </div>
   );

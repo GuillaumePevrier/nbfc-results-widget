@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { DEFAULT_CLUB_ID, fetchClubResults } from "@/lib/dofa";
+import {
+  DEFAULT_CLUB_ID,
+  buildResultsPayload,
+  fetchClubResults,
+  fetchCompetitionRanking,
+} from "@/lib/dofa";
 import { ClubResultsPayload, ErrorPayload } from "@/types/results";
 
 export async function GET(request: Request, { params }: { params: { clubId: string } }) {
@@ -8,9 +13,10 @@ export async function GET(request: Request, { params }: { params: { clubId: stri
   const competitionId = searchParams.get("competitionId") || undefined;
 
   try {
-    const { lastMatch, nextMatch } = await fetchClubResults(clubId, competitionId);
+    const matches = await fetchClubResults(clubId, competitionId);
+    const ranking = await fetchCompetitionRanking(competitionId);
 
-    if (!lastMatch && !nextMatch) {
+    if (!matches.lastMatch && !matches.nextMatch) {
       const status = 502;
       const errorPayload: ErrorPayload = {
         error: true,
@@ -20,12 +26,7 @@ export async function GET(request: Request, { params }: { params: { clubId: stri
       return NextResponse.json(errorPayload, { status });
     }
 
-    const payload: ClubResultsPayload = {
-      clubId,
-      lastMatch,
-      nextMatch,
-      updatedAt: new Date().toISOString(),
-    };
+    const payload: ClubResultsPayload = buildResultsPayload(clubId, matches, ranking);
 
     return NextResponse.json(payload, { status: 200 });
   } catch (error) {
