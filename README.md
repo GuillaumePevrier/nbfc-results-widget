@@ -9,8 +9,9 @@ npm install
 npm run dev
 ```
 
-- Widget page: `http://localhost:3000/widget?clubId=12345&clubName=Nanterre%20Blue%20FC`
-- API route: `http://localhost:3000/api/club/{clubId}/results`
+- Widget page: `http://localhost:3000/widget?club=547517&clubName=Your%20Club`
+- Results API route: `http://localhost:3000/api/club/{clubId}/results`
+- Teams API route: `http://localhost:3000/api/club/{clubId}/teams`
 
 ## Features
 - Server-side data fetching only (DOFA API or mocked fallback).
@@ -19,8 +20,9 @@ npm run dev
 - Mocked data used automatically if the DOFA API is unreachable.
 
 ## Project structure
-- `app/widget/page.tsx` – Renders the widget UI and pulls club data server-side.
+- `app/widget/page.tsx` – Renders the widget UI and pulls club data server-side with club defaults and team context.
 - `app/api/club/[clubId]/results/route.ts` – Server route proxying DOFA API with graceful fallback.
+- `app/api/club/[clubId]/teams/route.ts` – Server route exposing the club's teams and default selection helper.
 - `components/Widget.tsx`, `MatchCard.tsx`, `RankingCard.tsx` – Core UI components.
-- `lib/dofa.ts`, `lib/mockData.ts` – Data fetching and mock responses.
+- `lib/dofa.ts`, `lib/mockData.ts` – Data fetching, team parsing, and mock responses.
 - `types/results.ts` – Shared TypeScript types.

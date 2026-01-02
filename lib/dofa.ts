@@ -1,6 +1,8 @@
 import { ClubResults, MatchSummary, RankingSummary } from "@/types/results";
+import { ClubTeam } from "@/types/teams";
 import { mockedResults } from "./mockData";
 
+export const DEFAULT_CLUB_ID = "547517";
 const API_BASE = "https://api-dofa.fff.fr/api";
 
 const normalizeMatch = (match: any, fallback?: Partial<MatchSummary>): MatchSummary => ({
@@ -75,11 +77,10 @@ const mapDofaResponse = (data: any): ClubResults | null => {
   };
 };
 
-export async function getClubResults(clubId: string): Promise<ClubResults> {
-  const fallback = mockedResults(clubId);
-  if (!clubId) return fallback;
-
-  const endpoint = `${API_BASE}/clubs/${clubId}/resultat`;
+export async function getClubResults(clubId: string = DEFAULT_CLUB_ID): Promise<ClubResults> {
+  const activeClubId = clubId || DEFAULT_CLUB_ID;
+  const fallback = mockedResults(activeClubId);
+  const endpoint = `${API_BASE}/clubs/${activeClubId}/resultat`;
 
   try {
     const response = await fetch(endpoint, {
@@ -104,5 +105,89 @@ export async function getClubResults(clubId: string): Promise<ClubResults> {
   } catch (error) {
     console.error("Failed to fetch DOFA results", error);
     return fallback;
+  }
+}
+
+const normalizeTeam = (team: any): ClubTeam | null => {
+  const name =
+    team?.nomEquipe ??
+    team?.libelleEquipe ??
+    team?.libelle ??
+    team?.name ??
+    team?.equipe;
+
+  if (!name) return null;
+
+  const competitionId =
+    team?.cp_no ?? team?.cpNo ?? team?.competitionId ?? team?.competition ?? team?.cpno;
+
+  return {
+    name,
+    competitionId: competitionId ? String(competitionId) : undefined,
+  };
+};
+
+const mapTeamsResponse = (data: any): ClubTeam[] => {
+  const teamsArray =
+    (Array.isArray(data) && data) ||
+    (Array.isArray(data?.equipes) && data.equipes) ||
+    (Array.isArray(data?.teams) && data.teams) ||
+    [];
+
+  return teamsArray
+    .map((team) => normalizeTeam(team))
+    .filter((team): team is ClubTeam => Boolean(team));
+};
+
+const selectDefaultTeam = (teams: ClubTeam[]): ClubTeam | null => {
+  if (!teams.length) return null;
+
+  const seniorTeams = teams.filter((team) => /senior/i.test(team.name));
+  const seniorA = seniorTeams.find((team) => /senior\s*A/i.test(team.name));
+
+  if (seniorA) return seniorA;
+  if (seniorTeams.length) return seniorTeams[0];
+
+  return teams[0];
+};
+
+export async function getClubTeams(clubId: string = DEFAULT_CLUB_ID): Promise<{
+  teams: ClubTeam[];
+  defaultTeam: ClubTeam | null;
+}> {
+  const activeClubId = clubId || DEFAULT_CLUB_ID;
+  const endpoint = `${API_BASE}/clubs/${activeClubId}/equipes.json?filter=`;
+  const fallbackTeams: ClubTeam[] = [
+    {
+      name: "Senior A",
+      competitionId: undefined,
+    },
+  ];
+
+  try {
+    const response = await fetch(endpoint, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`DOFA API responded with ${response.status}`);
+    }
+
+    const data = await response.json();
+    const teams = mapTeamsResponse(data);
+    const defaultTeam = selectDefaultTeam(teams);
+
+    if (!teams.length) {
+      throw new Error("No teams returned from DOFA API");
+    }
+
+    return { teams, defaultTeam };
+  } catch (error) {
+    console.error("Failed to fetch DOFA teams", error);
+    const defaultTeam = selectDefaultTeam(fallbackTeams);
+    return { teams: fallbackTeams, defaultTeam };
   }
 }

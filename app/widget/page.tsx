@@ -1,9 +1,9 @@
-import { getClubResults } from "@/lib/dofa";
+import { DEFAULT_CLUB_ID, getClubResults, getClubTeams } from "@/lib/dofa";
 import { Widget } from "@/components/Widget";
 
 interface WidgetPageProps {
   searchParams?: {
-    clubId?: string;
+    club?: string;
     clubName?: string;
   };
 }
@@ -11,13 +11,22 @@ interface WidgetPageProps {
 export const revalidate = 0;
 
 export default async function WidgetPage({ searchParams }: WidgetPageProps) {
-  const clubId = searchParams?.clubId || "12345";
-  const clubName = searchParams?.clubName || "Nanterre Blue FC";
-  const results = await getClubResults(clubId);
+  const clubId = searchParams?.club || DEFAULT_CLUB_ID;
+  const clubName = searchParams?.clubName || `Club ${clubId}`;
+
+  const [results, { defaultTeam, teams }] = await Promise.all([
+    getClubResults(clubId),
+    getClubTeams(clubId),
+  ]);
 
   return (
     <main>
-      <Widget clubName={clubName} results={results} />
+      <Widget
+        clubName={clubName}
+        results={results}
+        selectedTeamName={defaultTeam?.name}
+        availableTeams={teams}
+      />
     </main>
   );
 }
