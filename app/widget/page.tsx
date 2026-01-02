@@ -1,8 +1,14 @@
 import { headers } from "next/headers";
 import { Widget } from "@/components/Widget";
-import { ClubResultsPayload, ErrorPayload, isErrorPayload } from "@/types/results";
+import { ClubResultsPayload, ErrorPayload, MatchDetails, isErrorPayload } from "@/types/results";
 import { ClubTeam } from "@/types/teams";
-import { DEFAULT_CLUB_ID, buildResultsPayload, extractClubNumber, parseMatches } from "@/lib/dofa";
+import {
+  DEFAULT_CLUB_ID,
+  buildResultsPayload,
+  extractClubNumber,
+  mapMatchList,
+  parseMatches,
+} from "@/lib/dofa";
 
 interface WidgetPageProps {
   searchParams?: {
@@ -98,8 +104,8 @@ export default async function WidgetPage({ searchParams }: WidgetPageProps) {
     teams = (teamsResult.data.teams as ClubTeam[]) || [];
   }
 
-  const selectedTeam = teams.find((team) => team.key === teamKeyParam) || teams[0] || null;
-  const selectedCompetitionId = cpNoParam || selectedTeam?.competitions?.[0]?.cp_no;
+  const selectedTeam = teams.find((team) => team.key === teamKeyParam) || null;
+  const selectedCompetitionId = cpNoParam || undefined;
 
   const resultsQuery = selectedCompetitionId
     ? `&cpNo=${encodeURIComponent(selectedCompetitionId)}`
@@ -142,6 +148,8 @@ export default async function WidgetPage({ searchParams }: WidgetPageProps) {
   const note = !matches.lastMatch && !matches.nextMatch ? "Aucun match disponible" : undefined;
   const payload: ClubResultsPayload = buildResultsPayload(clubId, matches, undefined, note);
 
+  const matchList: MatchDetails[] = mapMatchList(resultsData, selectedCompetitionId).slice(0, 10);
+
   return (
     <main>
       <Widget
@@ -153,6 +161,7 @@ export default async function WidgetPage({ searchParams }: WidgetPageProps) {
         selectedCompetitionId={selectedCompetitionId}
         availableTeams={teams}
         note={payload.note}
+        matchList={matchList}
       />
     </main>
   );

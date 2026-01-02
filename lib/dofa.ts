@@ -34,9 +34,9 @@ const getCompetitionIdentifier = (entry: Record<string, unknown>): string | null
   return null;
 };
 
-type NormalizedMatch = MatchDetails & { rawDate: string };
+export type NormalizedMatch = MatchDetails & { rawDate: string };
 
-const normalizeMatchDetails = (match: unknown): NormalizedMatch | null => {
+export const normalizeMatchDetails = (match: unknown): NormalizedMatch | null => {
   if (!match || typeof match !== "object") return null;
   const entry = match as Record<string, unknown>;
 
@@ -182,6 +182,23 @@ export const buildResultsPayload = (
   note,
   updatedAt: new Date().toISOString(),
 });
+
+export const mapMatchList = (
+  data: unknown,
+  competitionId?: string | null
+): MatchDetails[] => {
+  const parsed = data as { "hydra:member"?: unknown; matches?: unknown };
+  const entries =
+    (Array.isArray(parsed?.["hydra:member"]) && parsed["hydra:member"]) ||
+    (Array.isArray(parsed?.matches) && parsed.matches) ||
+    [];
+
+  return entries
+    .map((item) => normalizeMatchDetails(item))
+    .filter((match): match is NormalizedMatch => Boolean(match))
+    .filter((match) => (competitionId ? match.competitionId === competitionId : true))
+    .sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+};
 
 const fetchJson = async (path: string) => {
   const response = await fetch(`${API_BASE}${path}`, {

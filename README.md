@@ -20,7 +20,7 @@ npm run dev
 - Toutes les données proviennent de l'API DOFA réelle (headers dédiés, pas de mock).
 - Le club par défaut est **cl_no = 24824** (NOYAL BRECE FC). Si un numéro d'affiliation est passé ou si l'ID renvoie 404, la page tente automatiquement de récupérer le `cl_no` via `/api/dofa/club/{id}`.
 - La page `/widget` ne fait que des appels serveur vers les routes internes ; aucun appel client direct à DOFA.
-- Sélection d'équipe via un dropdown (données `/api/dofa/teams`) : l'équipe choisie applique le premier `cp_no` disponible pour filtrer les résultats.
+- Sélection d'équipe via un dropdown (données `/api/dofa/teams`) et, si souhaité, filtre par compétition (`cp_no`).
 - États gérés : loading, vide (`Aucun match disponible`), erreur (`Données indisponibles` + statut HTTP).
 
 ## Structure

@@ -1,5 +1,5 @@
 import styles from "./widget.module.css";
-import { ClubResultsPayload } from "@/types/results";
+import { ClubResultsPayload, MatchDetails } from "@/types/results";
 import { ClubTeam } from "@/types/teams";
 import { MatchCard } from "./MatchCard";
 import { RankingCard } from "./RankingCard";
@@ -13,6 +13,7 @@ interface WidgetProps {
   selectedCompetitionId?: string;
   availableTeams?: ClubTeam[];
   note?: string;
+  matchList?: MatchDetails[];
 }
 
 export function Widget({
@@ -24,11 +25,14 @@ export function Widget({
   selectedCompetitionId,
   availableTeams = [],
   note,
+  matchList = [],
 }: WidgetProps) {
   const selectedTeam = availableTeams.find((team) => team.key === selectedTeamKey) || null;
   const selectedCompetitionLabel =
     selectedTeam?.competitions?.find((comp) => comp.cp_no === selectedCompetitionId)?.name ||
     selectedTeam?.competitions?.[0]?.name;
+
+  const competitions = selectedTeam?.competitions || [];
 
   return (
     <div className={styles.widgetWrapper}>
@@ -42,7 +46,6 @@ export function Widget({
         {availableTeams.length ? (
           <form className={styles.teamSelector} method="get">
             <input type="hidden" name="club" value={clubId} />
-            <input type="hidden" name="clubName" value={clubName} />
             <label className={styles.teamLabel} htmlFor="team">
               Sélection d'équipe
             </label>
@@ -59,6 +62,21 @@ export function Widget({
                   </option>
                 ))}
               </select>
+              {competitions.length ? (
+                <select
+                  id="competition"
+                  name="cpNo"
+                  defaultValue={selectedCompetitionId || ""}
+                  className={styles.teamSelect}
+                >
+                  <option value="">Toutes compétitions</option>
+                  {competitions.map((comp) => (
+                    <option key={comp.cp_no} value={comp.cp_no}>
+                      {comp.name || `Compétition ${comp.cp_no}`}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
               <button type="submit" className={styles.teamSubmit}>
                 Afficher
               </button>
@@ -87,6 +105,36 @@ export function Widget({
           emptyText="Aucun match à venir"
         />
         <RankingCard ranking={results.ranking ?? null} />
+        <div className={styles.matchList}>
+          <h3>Liste des matchs</h3>
+          {matchList.length === 0 ? (
+            <p className={styles.note}>Aucun match disponible</p>
+          ) : (
+            <ul className={styles.matchItems}>
+              {matchList.map((match, index) => (
+                <li key={`${match.date}-${index}`} className={styles.matchItem}>
+                  <div>
+                    <div className={styles.matchTitle}>
+                      {match.homeName || "Domicile"} vs {match.awayName || "Extérieur"}
+                    </div>
+                    <div className={styles.matchMeta}>
+                      <span>{new Date(match.date).toLocaleDateString("fr-FR")}</span>
+                      {match.time ? <span> • {match.time}</span> : null}
+                      {match.competitionName ? <span> • {match.competitionName}</span> : null}
+                    </div>
+                  </div>
+                  {match.homeScore !== undefined && match.awayScore !== undefined ? (
+                    <div className={styles.score}>
+                      {match.homeScore} - {match.awayScore}
+                    </div>
+                  ) : (
+                    <span className={styles.badge}>à venir</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </section>
     </div>
   );
