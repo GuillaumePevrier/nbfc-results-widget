@@ -2,6 +2,7 @@ import { DEFAULT_CLUB_ID, getClubTeams } from "@/lib/dofa";
 import { Widget } from "@/components/Widget";
 import { ClubResultsPayload, ErrorPayload } from "@/types/results";
 import { ClubTeam } from "@/types/teams";
+import { headers } from "next/headers";
 
 interface WidgetPageProps {
   searchParams?: {
@@ -17,9 +18,22 @@ const fetchResults = async (
   clubId: string,
   competitionId?: string
 ): Promise<ClubResultsPayload | ErrorPayload> => {
+  const hostHeader = headers().get("host");
+  const derivedHost = hostHeader ? `${hostHeader}` : "";
+  const protocol = derivedHost.includes("localhost") ? "http" : "https";
+
   const baseUrl =
     process.env.NEXT_PUBLIC_BASE_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ??
+    (derivedHost ? `${protocol}://${derivedHost}` : "");
+
+  if (!baseUrl) {
+    return {
+      error: true,
+      status: 500,
+      message: "Base d'URL introuvable pour l'appel interne",
+    };
+  }
 
   const query = competitionId ? `?competitionId=${encodeURIComponent(competitionId)}` : "";
   const response = await fetch(`${baseUrl}/api/club/${clubId}/results${query}`, {
