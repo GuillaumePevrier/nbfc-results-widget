@@ -1,4 +1,4 @@
-import { ClubTeam } from "@/types/teams";
+import { ClubTeam, TeamCompetition } from "@/types/teams";
 import { ClubResultsPayload, MatchDetails, RankingSummary } from "@/types/results";
 
 export const DEFAULT_CLUB_ID = "24824";
@@ -6,7 +6,7 @@ const API_BASE = "https://api-dofa.fff.fr/api";
 
 export const DOFA_HEADERS = {
   Accept: "application/json",
-  "User-Agent": "nbfc-results-widget/1.0 (contact: admin@noyalbrecefc.com)",
+  "User-Agent": "nbfc-results-widget/1.0 (Vercel)",
 };
 
 const toIsoString = (value: unknown): string | null => {
@@ -196,39 +196,68 @@ const fetchJson = async (path: string) => {
   return response.json();
 };
 
-const normalizeTeam = (team: unknown): ClubTeam | null => {
+const normalizeTeam = (team: unknown, index: number): ClubTeam | null => {
   if (!team || typeof team !== "object") return null;
   const entry = team as Record<string, unknown>;
 
-  const name =
-    (entry["nomEquipe"] as string) ||
-    (entry["libelleEquipe"] as string) ||
-    (entry["libelle"] as string) ||
-    (entry["name"] as string) ||
-    (entry["equipe"] as string);
-
-  if (!name) return null;
-
-  const competitionId =
-    entry["cp_no"] ??
-    entry["cpNo"] ??
-    entry["competitionId"] ??
-    entry["competition"] ??
-    entry["cpno"];
-
-  const categoryCode = (entry["categorie_code"] as string) || (entry["category_code"] as string);
-  const categoryLabel = (entry["categorie_libelle"] as string) || (entry["category_label"] as string);
+  const category_code =
+    (entry["categorie_code"] as string) ||
+    (entry["category_code"] as string) ||
+    (entry["categoryCode"] as string);
+  const category_label =
+    (entry["categorie_libelle"] as string) ||
+    (entry["category_label"] as string) ||
+    (entry["categoryLabel"] as string);
   const number =
     (entry["numero"] as string) ||
     (entry["number"] as string) ||
     (typeof entry["numEquipe"] === "number" ? String(entry["numEquipe"]) : undefined);
+  const code = (entry["code"] as string) || (entry["equipe_code"] as string);
+
+  const competitionsRaw = Array.isArray((entry as { engagements?: unknown[] })?.engagements)
+    ? ((entry as { engagements: unknown[] }).engagements as unknown[])
+    : Array.isArray((entry as { competitions?: unknown[] })?.competitions)
+      ? ((entry as { competitions: unknown[] }).competitions as unknown[])
+      : [];
+
+  const competitions: TeamCompetition[] = competitionsRaw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const comp = item as Record<string, unknown>;
+      const cp_no = comp["cp_no"] ?? comp["cpNo"] ?? comp["competitionId"] ?? comp["competition"];
+      if (cp_no === undefined || cp_no === null) return null;
+      return {
+        cp_no: String(cp_no),
+        name:
+          (comp["libelle"] as string) ||
+          (comp["libelleCompetition"] as string) ||
+          (comp["competition_libelle"] as string) ||
+          (comp["name"] as string),
+        type: (comp["type"] as string) || (comp["typ"] as string),
+        level: (comp["niveau"] as string) || (comp["level"] as string),
+      } as TeamCompetition;
+    })
+    .filter((entry: TeamCompetition | null): entry is TeamCompetition => Boolean(entry));
+
+  const labelParts = [category_label || category_code, number ? `Equipe ${number}` : null, code];
+  const label =
+    (entry["nomEquipe"] as string) ||
+    (entry["libelleEquipe"] as string) ||
+    (entry["libelle"] as string) ||
+    labelParts.filter(Boolean).join(" • ");
+
+  if (!label) return null;
+
+  const keyBase = `${category_code || "team"}-${number || index + 1}-${code || label}`;
 
   return {
-    name,
-    competitionId: competitionId ? String(competitionId) : undefined,
-    categoryCode: categoryCode || undefined,
-    categoryLabel: categoryLabel || undefined,
+    key: keyBase,
+    label,
+    category_code: category_code || undefined,
+    category_label: category_label || undefined,
     number,
+    code,
+    competitions,
   };
 };
 
@@ -242,21 +271,11 @@ export const mapTeamsResponse = (data: unknown): ClubTeam[] => {
     [];
 
   return teamsArray
-    .map((team: unknown) => normalizeTeam(team))
+    .map((team: unknown, index: number) => normalizeTeam(team, index))
     .filter((team: ClubTeam | null): team is ClubTeam => Boolean(team));
 };
 
-export const selectDefaultTeam = (teams: ClubTeam[]): ClubTeam | null => {
-  if (!teams.length) return null;
-
-  const seniorTeams = teams.filter((team) => /senior/i.test(team.name));
-  const seniorA = seniorTeams.find((team) => /senior\s*A/i.test(team.name));
-
-  if (seniorA) return seniorA;
-  if (seniorTeams.length) return seniorTeams[0];
-
-  return teams[0];
-};
+export const selectDefaultTeam = (teams: ClubTeam[]): ClubTeam | null => teams[0] ?? null;
 
 export const fetchClubInfo = async (
   clubId: string = DEFAULT_CLUB_ID

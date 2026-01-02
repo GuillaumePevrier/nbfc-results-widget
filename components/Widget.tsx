@@ -8,8 +8,9 @@ interface WidgetProps {
   clubName: string;
   clubId: string;
   results: ClubResultsPayload;
-  selectedTeamId?: string;
+  selectedTeamKey?: string;
   selectedTeamName?: string;
+  selectedCompetitionId?: string;
   availableTeams?: ClubTeam[];
   note?: string;
 }
@@ -18,12 +19,16 @@ export function Widget({
   clubName,
   clubId,
   results,
-  selectedTeamId,
+  selectedTeamKey,
   selectedTeamName,
+  selectedCompetitionId,
   availableTeams = [],
   note,
 }: WidgetProps) {
-  const teamsWithIds = availableTeams.filter((team) => Boolean(team.competitionId));
+  const selectedTeam = availableTeams.find((team) => team.key === selectedTeamKey) || null;
+  const selectedCompetitionLabel =
+    selectedTeam?.competitions?.find((comp) => comp.cp_no === selectedCompetitionId)?.name ||
+    selectedTeam?.competitions?.[0]?.name;
 
   return (
     <div className={styles.widgetWrapper}>
@@ -34,7 +39,7 @@ export function Widget({
         <h2 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary)" }}>
           {clubName} • Match Center
         </h2>
-        {teamsWithIds.length ? (
+        {availableTeams.length ? (
           <form className={styles.teamSelector} method="get">
             <input type="hidden" name="club" value={clubId} />
             <input type="hidden" name="clubName" value={clubName} />
@@ -44,14 +49,13 @@ export function Widget({
             <div className={styles.teamControls}>
               <select
                 id="team"
-                name="team"
-                defaultValue={selectedTeamId || ""}
+                name="teamKey"
+                defaultValue={selectedTeamKey || ""}
                 className={styles.teamSelect}
               >
-                <option value="">Toutes compétitions</option>
-                {teamsWithIds.map((team) => (
-                  <option key={`${team.name}-${team.competitionId}`} value={team.competitionId}>
-                    {team.name}
+                {availableTeams.map((team) => (
+                  <option key={team.key} value={team.key}>
+                    {team.label}
                   </option>
                 ))}
               </select>
@@ -60,17 +64,12 @@ export function Widget({
               </button>
             </div>
             {selectedTeamName ? (
-              <p className={styles.teamHelper}>Équipe sélectionnée : {selectedTeamName}</p>
+              <p className={styles.teamHelper}>
+                Équipe sélectionnée : {selectedTeamName}
+                {selectedCompetitionLabel ? ` • ${selectedCompetitionLabel}` : ""}
+              </p>
             ) : null}
           </form>
-        ) : selectedTeamName ? (
-          <p style={{ color: "var(--muted)", marginTop: 4 }}>
-            Équipe par défaut : {selectedTeamName}
-          </p>
-        ) : availableTeams.length ? (
-          <p style={{ color: "var(--muted)", marginTop: 4 }}>
-            Équipes disponibles : {availableTeams.length}
-          </p>
         ) : null}
       </header>
       <section className={styles.widgetCard}>

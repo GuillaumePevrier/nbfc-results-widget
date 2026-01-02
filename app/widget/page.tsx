@@ -1,13 +1,15 @@
 import { headers } from "next/headers";
-import { DEFAULT_CLUB_ID } from "@/lib/dofa";
 import { Widget } from "@/components/Widget";
 import { ClubResultsPayload, ErrorPayload, isErrorPayload } from "@/types/results";
 import { ClubTeam } from "@/types/teams";
+import { DEFAULT_CLUB_ID, buildResultsPayload, extractClubNumber, parseMatches } from "@/lib/dofa";
 
 interface WidgetPageProps {
   searchParams?: {
     club?: string;
+    teamKey?: string;
     team?: string;
+    cpNo?: string;
   };
 }
 
@@ -21,11 +23,12 @@ const buildInternalUrl = (path: string) => {
   return `${protocol}://${host}${path}`;
 };
 
-const fetchInternal = async <T>(path: string) => {
+const fetchInternal = async (path: string) => {
   const url = buildInternalUrl(path);
   const response = await fetch(url, { cache: "no-store" });
-  const data = (await response.json()) as T;
-  return { response, data };
+  const contentType = response.headers.get("content-type") || "";
+  const data = contentType.includes("application/json") ? await response.json() : null;
+  return { response, data } as { response: Response; data: any };
 };
 
 const parseClubName = (data: unknown): string | null => {
@@ -40,120 +43,107 @@ const parseClubName = (data: unknown): string | null => {
   );
 };
 
+const resolveClubId = async (clubParam?: string) => {
+  const candidate = clubParam?.trim() || DEFAULT_CLUB_ID;
+
+  const infoResponse = await fetchInternal(`/api/dofa/club/${candidate}`);
+  if (infoResponse.response.ok && !isErrorPayload(infoResponse.data)) {
+    const clubNumber = extractClubNumber(infoResponse.data);
+    const clubName = parseClubName(infoResponse.data);
+    return { clubId: clubNumber || candidate, clubName: clubName || `Club ${candidate}` };
+  }
+
+  return { clubId: candidate, clubName: `Club ${candidate}` };
+};
+
+const buildErrorState = (payload: ErrorPayload | null, fallback: string) => {
+  return (
+    <main style={{ padding: "16px" }}>
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: "16px",
+          padding: "20px",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+          color: "#0f172a",
+        }}
+      >
+        <h2 style={{ fontSize: "1.6rem", fontWeight: 800, marginBottom: 8 }}>Données indisponibles</h2>
+        <p style={{ color: "#6b7280", margin: 0 }}>{fallback}</p>
+        {payload ? (
+          <p style={{ color: "#9ca3af", marginTop: 8, fontSize: "0.85rem" }}>
+            Statut HTTP: {payload.status}
+            {payload.message ? ` • ${payload.message}` : ""}
+          </p>
+        ) : null}
+      </div>
+    </main>
+  );
+};
+
 export default async function WidgetPage({ searchParams }: WidgetPageProps) {
-  const clubParam = searchParams?.club?.trim() || DEFAULT_CLUB_ID;
-  const requestedTeam = searchParams?.team?.trim();
+  const clubParam = searchParams?.club?.trim();
+  const teamKeyParam = searchParams?.teamKey?.trim() || searchParams?.team?.trim();
+  const cpNoParam = searchParams?.cpNo?.trim();
+
+  const { clubId: initialClubId, clubName: initialClubName } = await resolveClubId(clubParam);
+
+  let clubId = initialClubId;
+  let clubName = initialClubName;
+
+  const teamsResult = await fetchInternal(`/api/dofa/teams?clNo=${encodeURIComponent(clubId)}`);
 
   let teams: ClubTeam[] = [];
-  let selectedTeam: ClubTeam | null = null;
-  let clubName = `Club ${clubParam}`;
-
-  try {
-    const teamsResult = await fetchInternal<{ teams: ClubTeam[]; defaultTeam: ClubTeam | null } | ErrorPayload>(
-      `/api/club/${clubParam}/teams`
-    );
-
-    if (!teamsResult.response.ok || isErrorPayload(teamsResult.data)) {
-      teams = [];
-      selectedTeam = null;
-    } else {
-      teams = teamsResult.data.teams ?? [];
-      selectedTeam =
-        teams.find((team) => requestedTeam && team.competitionId === requestedTeam) ||
-        teamsResult.data.defaultTeam ||
-        null;
-    }
-  } catch (error) {
-    console.error("Failed to load teams", error);
+  if (teamsResult.response.ok && teamsResult.data?.ok) {
+    teams = (teamsResult.data.teams as ClubTeam[]) || [];
   }
 
-  const competitionId = selectedTeam?.competitionId || requestedTeam;
+  const selectedTeam = teams.find((team) => team.key === teamKeyParam) || teams[0] || null;
+  const selectedCompetitionId = cpNoParam || selectedTeam?.competitions?.[0]?.cp_no;
 
-  let resultsPayload: ClubResultsPayload | null = null;
-  let errorPayload: ErrorPayload | null = null;
+  const resultsQuery = selectedCompetitionId
+    ? `&cpNo=${encodeURIComponent(selectedCompetitionId)}`
+    : "";
+  let resultsPath = `/api/dofa/results?clNo=${encodeURIComponent(clubId)}${resultsQuery}`;
+  let resultsResponse = await fetchInternal(resultsPath);
 
-  try {
-    const resultsPath = competitionId
-      ? `/api/club/${clubParam}/results?competitionId=${competitionId}`
-      : `/api/club/${clubParam}/results`;
-
-    const resultsResponse = await fetchInternal<ClubResultsPayload | ErrorPayload>(resultsPath);
-
-    if (!resultsResponse.response.ok || isErrorPayload(resultsResponse.data)) {
-      errorPayload = isErrorPayload(resultsResponse.data)
-        ? resultsResponse.data
-        : {
-            error: true,
-            status: resultsResponse.response.status,
-            message: "Erreur lors du chargement des résultats",
-          };
-    } else {
-      resultsPayload = resultsResponse.data as ClubResultsPayload;
-      const clubInfoResponse = await fetchInternal<Record<string, unknown> | ErrorPayload>(
-        `/api/dofa/club/${resultsPayload.clubId}`
-      );
-      if (clubInfoResponse.response.ok && !isErrorPayload(clubInfoResponse.data)) {
-        clubName = parseClubName(clubInfoResponse.data) || clubName;
-      } else if (!clubName) {
-        clubName = `Club ${resultsPayload.clubId}`;
-      }
-    }
-  } catch (error) {
-    errorPayload = { error: true, status: 500, message: (error as Error)?.message };
+  if (resultsResponse.response.status === 404 && clubParam && clubParam !== clubId) {
+    const resolved = await resolveClubId(clubParam);
+    clubId = resolved.clubId;
+    clubName = resolved.clubName;
+    resultsPath = `/api/dofa/results?clNo=${encodeURIComponent(clubId)}${resultsQuery}`;
+    resultsResponse = await fetchInternal(resultsPath);
   }
 
-  if (errorPayload) {
-    return (
-      <main style={{ padding: "16px" }}>
-        <div
-          style={{
-            background: "#fff",
-            borderRadius: "16px",
-            padding: "20px",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-            color: "#0f172a",
-          }}
-        >
-          <h2 style={{ fontSize: "1.6rem", fontWeight: 800, marginBottom: 8 }}>Données indisponibles</h2>
-          <p style={{ color: "#6b7280", margin: 0 }}>Impossible de récupérer les résultats du club.</p>
-          <p style={{ color: "#9ca3af", marginTop: 8, fontSize: "0.85rem" }}>
-            Statut HTTP: {errorPayload.status}
-            {errorPayload.message ? ` • ${errorPayload.message}` : ""}
-          </p>
-        </div>
-      </main>
-    );
+  if (!resultsResponse.response.ok || !resultsResponse.data?.ok) {
+    const status = resultsResponse.response.status;
+    const message =
+      status === 404
+        ? "Identifiant club invalide"
+        : resultsResponse.data?.message || "Erreur lors du chargement des résultats";
+    const errorPayload: ErrorPayload = { error: true, status, message };
+    return buildErrorState(errorPayload, "Impossible de récupérer les résultats du club.");
   }
 
-  if (!resultsPayload) {
-    return (
-      <main style={{ padding: "16px" }}>
-        <div
-          style={{
-            background: "#fff",
-            borderRadius: "16px",
-            padding: "20px",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-            color: "#0f172a",
-          }}
-        >
-          <h2 style={{ fontSize: "1.6rem", fontWeight: 800, marginBottom: 8 }}>Données indisponibles</h2>
-          <p style={{ color: "#6b7280", margin: 0 }}>Aucune donnée disponible pour ce club.</p>
-        </div>
-      </main>
-    );
-  }
+  const resultsData = resultsResponse.data?.data;
+  const calendarResponse = await fetchInternal(`/api/dofa/club/${clubId}/calendrier`);
+  const calendarData = calendarResponse.response.ok ? calendarResponse.data : undefined;
+
+  const matches = parseMatches(resultsData, calendarData, selectedCompetitionId || undefined);
+  const note = !matches.lastMatch && !matches.nextMatch ? "Aucun match disponible" : undefined;
+  const payload: ClubResultsPayload = buildResultsPayload(clubId, matches, undefined, note);
 
   return (
     <main>
       <Widget
         clubName={clubName}
-        clubId={resultsPayload.clubId}
-        results={resultsPayload}
-        selectedTeamId={selectedTeam?.competitionId}
-        selectedTeamName={selectedTeam?.name}
+        clubId={clubId}
+        results={payload}
+        selectedTeamKey={selectedTeam?.key}
+        selectedTeamName={selectedTeam?.label}
+        selectedCompetitionId={selectedCompetitionId}
         availableTeams={teams}
-        note={resultsPayload.note}
+        note={payload.note}
       />
     </main>
   );

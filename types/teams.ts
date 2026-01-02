@@ -1,7 +1,16 @@
+export type TeamCompetition = {
+  cp_no: string;
+  name?: string;
+  type?: string;
+  level?: string;
+};
+
 export type ClubTeam = {
-  name: string;
-  competitionId?: string;
-  categoryCode?: string;
-  categoryLabel?: string;
+  key: string;
+  label: string;
+  category_code?: string;
+  category_label?: string;
   number?: string;
+  code?: string;
+  competitions: TeamCompetition[];
 };
